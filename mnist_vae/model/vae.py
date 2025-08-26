@@ -3,7 +3,7 @@
 import torch
 import torch.nn.functional as F
 from torch import nn
-from model.categorical import categorical_repara
+from .categorical_beta import categorical_repara
 
 import math
 
@@ -11,6 +11,7 @@ activation_map = {
     'relu': nn.ReLU,
     'leakyrelu': nn.LeakyReLU,
 }
+
 
 class Encoder(nn.Module):
     def __init__(self, latent_dim, categorical_dim, activation='relu'):
@@ -76,6 +77,7 @@ class VAE(nn.Module):
         self.latent_dim = latent_dim
         self.temperature = temperature
         self.method = method
+        self.alpha=1.0
         
         if 'exact' == self.method:
             self.forward = self.forward_exact
@@ -86,7 +88,7 @@ class VAE(nn.Module):
 
     def compute_code_regular(self, data, with_log_p=False):
         theta = self.encoder(data)
-        z, qy = categorical_repara(theta, self.temperature, self.method)
+        z, qy = categorical_repara(theta, self.temperature, self.method, self.alpha)
         qy = qy.view(data.size(0), self.latent_dim, self.categorical_dim)
         z = z.view(data.size(0), self.latent_dim, self.categorical_dim)
         if with_log_p:
@@ -101,7 +103,7 @@ class VAE(nn.Module):
             self.theta_gradient = gradient 
             return gradient 
         theta.register_hook(theta_gradient_save)
-        z, qy = categorical_repara(theta, self.temperature, self.method)
+        z, qy = categorical_repara(theta, self.temperature, self.method, self.alpha)
         qy = qy.view(data.size(0), self.latent_dim, self.categorical_dim)
         z = z.view(data.size(0), self.latent_dim, self.categorical_dim)
         if with_log_p:
@@ -119,11 +121,13 @@ class VAE(nn.Module):
         batch_size = data.size(0)
         z, qy = self.compute_code(data)
         r_d = z.view(batch_size, -1)
+        #print(z.shape, r_d.shape) torch.Size([100, 128, 10]) torch.Size([100, 1280])
         BCE = self.decoder(r_d, data).sum() / batch_size
         
         qy = qy.view(batch_size, -1)
         log_ratio = torch.log(qy + 1e-10)
         KLD = torch.sum(qy * log_ratio, dim=-1).mean() + math.log(self.categorical_dim) * self.latent_dim
+        #print(BCE)
         return BCE, KLD, (z, r_d), qy
     
     def exact_bce_loss(self, data):

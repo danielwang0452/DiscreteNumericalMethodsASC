@@ -4,7 +4,7 @@ import wandb
 import torch
 import torch.nn.functional as F
 from torch import nn, optim
-from model.categorical import categorical_repara
+from mnist_vae.model.categorical_beta import categorical_repara
 import random
 import numpy as np
 
@@ -13,12 +13,12 @@ parser.add_argument('--batch-size', type=int, default=64, metavar='N',
                     help='input batch size for training')
 parser.add_argument('--train-step-per-epoch', type=int, default=200, metavar='N',
                     help='number of epochs to train')
-parser.add_argument('--epochs', type=int, default=40, metavar='N',
+parser.add_argument('--epochs', type=int, default=4, metavar='N',
                     help='number of epochs to train')
 parser.add_argument('--temperature', type=float, default=1.0, metavar='S',
                     help='softmax temperature')
-parser.add_argument('--alpha', type=float, default=1.0, metavar='S',
-                    help='RK 2nd order parameter')  # 0.5 -> midpoint, 1 -> Heun, 2/3 -> Ralston
+parser.add_argument('--beta', type=float, default=1.0, metavar='S',
+                    help='RK 2nd order parameter')  # 0 -> midpoint, 1/2 -> Heun, 1/4 -> Ralston
 parser.add_argument('--no-cuda', action='store_true', default=False,
                     help='enables CUDA training')
 parser.add_argument('--seed', type=int, default=1, metavar='S',
@@ -164,6 +164,15 @@ def soft_train(epoch):
     #    epoch, loss))
 
 
+def poly_single_run(run, parameter_val):
+    torch.manual_seed(args.seed)
+    model = Quadratic_Toy()
+    model.method = args.method
+    optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    for epoch in range(1, args.epochs + 1):
+        train_metrics = train(model, optimizer, epoch, parameter_val)
+    return train_metrics
+
 def run():
     wandb.init(
         project="ReinMax_ASC",
@@ -174,7 +183,7 @@ def run():
     )
     n_runs = 100
     results = []
-    x_vals = np.linspace(-0.5, 1.5, n_runs).tolist()
+    x_vals = np.linspace(-10.0, 10.0, n_runs).tolist()
 
     for run in range(n_runs):
         print(run)

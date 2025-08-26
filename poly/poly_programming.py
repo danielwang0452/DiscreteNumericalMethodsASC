@@ -57,8 +57,10 @@ class Quadratic_Toy(nn.Module):
             log_y = (z * theta_b).sum(dim=-1) - torch.logsumexp(theta_b, dim=-1)
         else: 
             z, qy = categorical_repara(theta_b, temp, self.method, alpha)
+            #print(z[0], z.shape)
             log_y = None
         z = z.view(batch_size, -1, categorical_dim)[:, :, 0]
+        #print(z, z.shape)
         qy = qy.view(batch_size, -1, categorical_dim)[:, :, 0]
         return z, qy, log_y
 
@@ -135,6 +137,7 @@ def train(epoch):
     alpha = args.alpha
     for batch_idx in enumerate(range(args.train_step_per_epoch)):
         z, qy, _ = model(temp, args.batch_size, alpha)
+        #print(z[1])
         loss = loss_function(z)
         optimizer.zero_grad()
         loss.backward()

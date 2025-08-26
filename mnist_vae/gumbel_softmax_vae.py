@@ -25,6 +25,8 @@ if __name__ == '__main__':
                         help='number of updates to train')
     parser.add_argument('--temperature', type=float, default=1.0, metavar='S',
                         help='softmax temperature')
+    parser.add_argument('--alpha', type=float, default=1.0, metavar='S',
+                        help='RK 2nd order parameter')  # 0.5 -> midpoint, 1 -> Heun, 2/3 -> Ralston
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='enables CUDA training')
     parser.add_argument('--seed', type=int, default=0, metavar='S',
@@ -186,7 +188,9 @@ if __name__ == '__main__':
                 sample = model.decoder.decode(sample).cpu()
                 save_image(sample.data.view(M // args.latent_dim, 1, 28, 28),
                         'data/sample_' + str(epoch) + '.png')
-
+            if epoch % 25 ==0:
+                print(epoch)
+                torch.save(model.state_dict(), f'/Users/danielwang/PycharmProjects/ReinMax_ASC/model_checkpoints/vae_epoch_{epoch}.pth')
     except Exception as e: 
         print(e)
         print("Error in Training, Failed")

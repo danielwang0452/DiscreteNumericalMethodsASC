@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 import torch
-
+print('using pip install version of reinmax')
 class ReinMax_Auto(torch.autograd.Function):
     """
     `torch.autograd.Function` implementation of the ReinMax gradient estimator.
@@ -34,10 +34,9 @@ class ReinMax_Auto(torch.autograd.Function):
         grad_at_sample: torch.Tensor, 
         grad_at_p: torch.Tensor,
     ):
-        if grad_at_p.abs().sum()>0:
-            print('mysterious term > 0 in reinmax.py')
+        #if grad_at_p.abs().sum()>0:
+        #    print('mysterious term > 0 in reinmax.py')
         one_hot_sample, logits, y_soft, tau, alpha = ctx.saved_tensors
-
         pi_alpha = (1-1/(2*alpha))*(logits / tau).softmax(dim=-1) +1/(2*alpha)*one_hot_sample
         shifted_y_soft = .5 * ((logits / tau).softmax(dim=-1) + one_hot_sample)
         grad_at_input_1 = (2 * grad_at_sample) * pi_alpha
@@ -48,6 +47,31 @@ class ReinMax_Auto(torch.autograd.Function):
         
         grad_at_input = grad_at_input_0 + grad_at_input_1
         return grad_at_input - grad_at_input.mean(dim=-1, keepdim=True), None, None
+    '''
+    @staticmethod
+    def backward(
+            ctx,
+            grad_at_sample: torch.Tensor,
+            grad_at_p: torch.Tensor,
+    ):
+
+        beta=0.5
+        one_hot_sample, logits, y_soft, tau, alpha = ctx.saved_tensors
+        pi_alpha = -beta * (logits / tau).softmax(dim=-1) + beta * one_hot_sample
+
+        shifted_y_soft = .5 * ((logits / tau).softmax(dim=-1) + one_hot_sample)
+        grad_at_input_1 = (2 * grad_at_sample) * pi_alpha
+        grad_at_input_1 = grad_at_input_1 - shifted_y_soft * grad_at_input_1.sum(dim=-1, keepdim=True)
+
+        grad_at_input_0 = (-beta * grad_at_sample + grad_at_p) * y_soft
+        grad_at_input_0 = grad_at_input_0 - y_soft * grad_at_input_0.sum(dim=-1, keepdim=True)
+
+        grad_at_input = grad_at_input_0 + grad_at_input_1
+        #print(grad_at_input - grad_at_input.mean(dim=-1, keepdim=True))
+        #print(logits)
+        #print(one_hot_sample, logits)
+        return grad_at_input - grad_at_input.mean(dim=-1, keepdim=True), None, None
+    '''
 
 def reinmax(
         logits: torch.Tensor, 
