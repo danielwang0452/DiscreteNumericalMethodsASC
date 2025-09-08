@@ -8,8 +8,6 @@ from .basic import rao_gumbel, gst_mover, exact, \
 #print(reinmax.__file__)
 from reinmax import reinmax
 
-
-
 simple_method_mapping = {
     'reinmax': reinmax,
     'st': st, 

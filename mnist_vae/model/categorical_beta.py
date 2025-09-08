@@ -6,7 +6,7 @@ from  poly.model.basic import rao_gumbel, gst_mover, exact, \
     st, reinmax_mean_baseline
 # import reinmax
 # print(reinmax.__file__)
-from reinmax import reinmax
+from reinmax import reinmax, reinmax_test
 
 simple_method_mapping = {
     'reinmax': reinmax,
@@ -14,17 +14,22 @@ simple_method_mapping = {
     'exact': exact,
     'reinmax_mean_baseline': reinmax_mean_baseline,
 }
+
 repeat_method_mapping = {
     'rao': ('rao_gumbel', rao_gumbel, int),
 }
 
-def categorical_repara(logits, temp, method='gumbel', alpha=1.0):
+def categorical_repara(logits, temp, method='gumbel', alpha=1.0, model_ref=None):
     if method == 'gumbel':
         qy = F.softmax(logits, dim=-1)
         return F.gumbel_softmax(logits, tau=temp, hard=True), qy
 
     elif method == 'reinmax':
         sample, qy = reinmax(logits, tau=temp, alpha=alpha)
+        return sample, qy
+
+    elif method == 'reinmax_test':
+        sample, qy = reinmax_test(logits, model_ref, tau=temp, alpha=alpha)
         return sample, qy
 
     elif method in simple_method_mapping:

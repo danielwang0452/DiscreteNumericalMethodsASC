@@ -6,4 +6,4 @@ __author__ = "Liyuan Liu"
 __maintainer__ = "Liyuan Liu"
 __email__ = "llychinalz@gmail.com"
 
-from .reinmax import reinmax
+from .reinmax import reinmax, reinmax_test

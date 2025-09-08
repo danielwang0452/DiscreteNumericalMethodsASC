@@ -124,6 +124,7 @@ def train(model, optimizer, epoch, beta):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        #print(model.theta_gradient)
         #total_updates += 1
 
         train_loss += loss.item() * len(data)

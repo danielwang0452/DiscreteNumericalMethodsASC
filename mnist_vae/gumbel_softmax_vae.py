@@ -23,7 +23,7 @@ if __name__ == '__main__':
                         help='number of epochs to train')
     parser.add_argument('--max-updates', type=int, default=0, metavar='N',
                         help='number of updates to train')
-    parser.add_argument('--temperature', type=float, default=1.0, metavar='S',
+    parser.add_argument('--temperature', type=float, default=1.3, metavar='S',
                         help='softmax temperature')
     parser.add_argument('--alpha', type=float, default=1.0, metavar='S',
                         help='RK 2nd order parameter')  # 0.5 -> midpoint, 1 -> Heun, 2/3 -> Ralston
@@ -37,17 +37,17 @@ if __name__ == '__main__':
                         help='gumbel, st, rao_gumbel, gst-1.0, reinmax')
     parser.add_argument('--log-images', type=lambda x: str(x).lower()=='true', default=False, 
                         help='log the sample & reconstructed images')
-    parser.add_argument('--lr', type=float, default=1e-3, 
+    parser.add_argument('--lr', type=float, default=5e-4,
                         help="learning rate for the optimizer")
-    parser.add_argument('--latent-dim', type=int, default=128,
+    parser.add_argument('--latent-dim', type=int, default=4,
                         help="latent dimension")
-    parser.add_argument('--categorical-dim', type=int, default=10,
+    parser.add_argument('--categorical-dim', type=int, default=8,
                         help="categorical dimension")
     parser.add_argument('--optim', type=str, default='adam',
                         help="adam, radam")
     parser.add_argument('--activation', type=str, default='relu',
                         help="relu, leakyrelu")
-    parser.add_argument('-s', '--gradient-estimate-sample', type=int, default=0,
+    parser.add_argument('-s', '--gradient-estimate-sample', type=int, default=1,
                         help="number of samples used to estimate gradient bias (default 0: not estimate)")
 
     args = parser.parse_args()
@@ -190,7 +190,7 @@ if __name__ == '__main__':
                         'data/sample_' + str(epoch) + '.png')
             if epoch % 25 ==0:
                 print(epoch)
-                torch.save(model.state_dict(), f'/Users/danielwang/PycharmProjects/ReinMax_ASC/model_checkpoints/vae_epoch_{epoch}.pth')
+                torch.save(model.state_dict(), f'/Users/danielwang/PycharmProjects/ReinMax_ASC/model_checkpoints/mini_vae_epoch_{epoch}.pth')
     except Exception as e: 
         print(e)
         print("Error in Training, Failed")

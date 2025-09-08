@@ -1,4 +1,4 @@
-
+# plot the sample variance at a fixed checkpoint and single data point
 import argparse
 import os
 import sys
@@ -12,12 +12,13 @@ from torchvision.utils import save_image
 from mnist_vae.model.vae import VAE
 import torch.func as fc
 import random
+import matplotlib.pyplot as plt
 
 device = 'cpu'
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='VAE MNIST Example')
-    parser.add_argument('--batch-size', type=int, default=100, metavar='N',
+    parser.add_argument('--batch-size', type=int, default=1, metavar='N',
                         help='input batch size for training (default: 100)')
     parser.add_argument('--epochs', type=int, default=50, metavar='N',
                         help='number of epochs to train') # 160
@@ -39,20 +40,19 @@ if __name__ == '__main__':
                         help='log the sample & reconstructed images')
     parser.add_argument('--lr', type=float, default=1e-3,
                         help="learning rate for the optimizer")
-    parser.add_argument('--latent-dim', type=int, default=128,
+    parser.add_argument('--latent-dim', type=int, default=128,#128
                         help="latent dimension")
-    parser.add_argument('--categorical-dim', type=int, default=10,
+    parser.add_argument('--categorical-dim', type=int, default=10,#10
                         help="categorical dimension")
     parser.add_argument('--optim', type=str, default='adam',
                         help="adam, radam")
     parser.add_argument('--activation', type=str, default='relu',
                         help="relu, leakyrelu")
-    parser.add_argument('-s', '--gradient-estimate-sample', type=int, default=0,
+    parser.add_argument('-s', '--gradient-estimate-sample', type=int, default=1000,
                         help="number of samples used to estimate gradient bias (default 0: not estimate)")
 
     args = parser.parse_args()
     args.cuda = not args.no_cuda and torch.cuda.is_available()
-
 
     #torch.manual_seed(args.seed)
 
@@ -72,61 +72,56 @@ if __name__ == '__main__':
         method=args.method,
         activation=args.activation
     )
-
-
-    def get_z(model, data):
-        batch_size = data.size(0)
-        z, qy = model.compute_code(data)
-        N = args.latent_dim
-        M = args.batch_size * args.latent_dim
-        K = args.categorical_dim
-        np_y1 = np.zeros((M, K))
-        np_y1[range(M), np.random.choice(K, M)] = 1
-        np_y1 = np.reshape(np_y1, [100, N, K])
-        #z = torch.tensor(np_y1, dtype=z.dtype)
-        r_d = z.view(batch_size, -1)
-        return r_d
-
-
-    def g_x(x, z1, z2, data, batch_size, model):
-        z = x * z1 + (1 - x) * z2
-        BCE = model.decoder(z, data).sum() / batch_size
-        return BCE
-
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     # load pretrained VAE
-    checkpoint = torch.load('/Users/danielwang/PycharmProjects/ReinMax_ASC/model_checkpoints/vae_epoch_150.pth',
+    checkpoint = torch.load('/Users/danielwang/PycharmProjects/ReinMax_ASC/model_checkpoints/vae_epoch_50.pth',
                             map_location=device)
     model.load_state_dict(checkpoint)
 
-    # Randomly select 3 batches
-    all_batches = list(train_loader)
-    (data1, _), (data2, _), (data3, _) = random.sample(all_batches, 3)
-    d1 = data1.view(data1.size(0), -1).to(device) # to get z1
-    d2 = data2.view(data2.size(0), -1).to(device) # to get z2
-    d3 = data3.view(data3.size(0), -1).to(device) # target
+    # select batch
+    data_list = list(train_loader)
+    index = random.randint(0, len(data_list))
+    print(index)
+    (data, _) = data_list[index]
+    data = data.view(data.size(0), -1).to(device)
+    num_samples = 1000
+    data = data.repeat((num_samples, 1))
+    print(data.shape)
+    variance_dict = {}
 
-    # get two samples z1, z2 corresponding to d1, d2. These will be I_i, I_j.
-    z1, z2 = get_z(model, d1), get_z(model, d2)
+    methods = ['reinmax', 'gumbel', 'st', 'gst-1.0']#, 'rao_gumbel']
+    #temps = torch.tensor([1.3, 0.5, 1.3, 0.7])#, 0.5]
+    #methods = ['st' for _ in range(10)]
+    temps = torch.ones(len(methods))
+    #temps = torch.linspace(0.05, 2.0, len(methods))
+    for m, method in enumerate(methods):
+        model.method = method
+        model.temperature = temps[m]
+        print(method)
+        model.zero_grad()
+        bce, kld, _, qy = model(data)
+        loss = bce + kld
+        optimizer.zero_grad()
+        loss.backward()
+        grad = model.theta_gradient
+        variance_dict[f'{method}_{str(temps[m].item())[:4]}'] = grad.var(dim=0).norm().item()
+    # plot variance
+    print(variance_dict)
 
-    xs = torch.linspace(-2, 2, steps=100)
-    # store outputs
-    gxs = []
-    d_gxs = []
-    target = d2 # torch.randint_like(d2, low=0, high=2)
-    for x in xs:
-        out, jvp = fc.jvp(lambda x: g_x(x, z1, z2, target, args.batch_size, model), (x,), (torch.tensor(1.0),))
-        gxs.append(out.item())
-        d_gxs.append(jvp.item())
-    #print(gxs, d_gxs)
-    import matplotlib.pyplot as plt
+    # Extract keys and values
+    methods = list(variance_dict.keys())
+    values = list(variance_dict.values())
 
-    # Example data
-    plt.plot(xs, gxs, label="g(x)", marker="s")
-    plt.plot(xs, d_gxs, label="g'(x)", marker="o")
+    # Plot bar chart
+    plt.figure(figsize=(8, 5))
+    plt.bar(methods, values)
 
-    plt.xlabel("x")
-    plt.ylabel("y")
-    plt.title("Line Plot of y1 and y2 vs x")
-    plt.legend()
-    plt.grid(True)
+    # Add labels and title
+    plt.ylabel("variance")
+    plt.xlabel("method")
+    plt.title("variance for fixed network & data point")
+
+    # Rotate x-axis labels if needed
+    plt.xticks(rotation=30)
+
     plt.show()

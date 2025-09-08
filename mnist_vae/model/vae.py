@@ -12,7 +12,6 @@ activation_map = {
     'leakyrelu': nn.LeakyReLU,
 }
 
-
 class Encoder(nn.Module):
     def __init__(self, latent_dim, categorical_dim, activation='relu'):
         super(Encoder, self).__init__()
@@ -84,7 +83,7 @@ class VAE(nn.Module):
         else:
             self.forward = self.forward_approx
         self.itensor = None
-        self.compute_code = self.compute_code_regular
+        self.compute_code = self.compute_code_track#regular
 
     def compute_code_regular(self, data, with_log_p=False):
         theta = self.encoder(data)
@@ -99,11 +98,13 @@ class VAE(nn.Module):
         
     def compute_code_track(self, data, with_log_p=False):
         theta = self.encoder(data)
+        #print(theta)
         def theta_gradient_save(gradient):
-            self.theta_gradient = gradient 
+            self.theta_gradient = gradient
+            #print(self.theta_gradient)
             return gradient 
         theta.register_hook(theta_gradient_save)
-        z, qy = categorical_repara(theta, self.temperature, self.method, self.alpha)
+        z, qy = categorical_repara(theta, self.temperature, self.method, self.alpha, self)
         qy = qy.view(data.size(0), self.latent_dim, self.categorical_dim)
         z = z.view(data.size(0), self.latent_dim, self.categorical_dim)
         if with_log_p:
@@ -229,33 +230,56 @@ class VAE(nn.Module):
             loss = torch.sum(log_p * loss.detach()) / data.size(0)
         else:
             loss = self.compute_bce_loss(data).sum() / data.size(0)
-        
         self.zero_grad()
         loss.backward()
         return self.theta_gradient
 
     def analyze_gradient(self, data, ct):
-        self.compute_code = self.compute_code_track
         exact_grad = self.exact_bce_gradient(data)
         
         mean_grad = torch.zeros_like(exact_grad).double()
         std_grad = torch.zeros_like(exact_grad).double()
-        
+        if self.method == 'reinmax_test':
+            mean_t1_grad = torch.zeros_like(exact_grad).double()
+            mean_t2_grad = torch.zeros_like(exact_grad).double()
+            std_t1_grad = torch.zeros_like(exact_grad).double()
+            std_t2_grad = torch.zeros_like(exact_grad).double()
+        #print(exact_grad.shape)
         for i in range(ct):
             grad = self.approx_bce_gradient(data)
-        
             mean_grad += grad 
             std_grad += grad ** 2
+            if self.method == 'reinmax_test':
+                t1_grad = self.reinmax_term1.reshape((100, 4 ,8))
+                t2_grad = self.reinmax_term2.reshape((100, 4 ,8))
+                mean_t1_grad += t1_grad
+                mean_t2_grad += t2_grad
+                std_t1_grad += t1_grad ** 2
+                std_t2_grad += t2_grad ** 2
 
-        self.compute_code = self.compute_code_regular
         mean_grad = mean_grad / ct 
-        std_grad = (std_grad / ct - mean_grad ** 2).abs() ** 0.5 
-        
+        std_grad = (std_grad / ct - mean_grad ** 2).abs() ** 0.5
+        diff = (exact_grad - mean_grad).norm()  # this norm is taken over the batch dimension?
 
-        diff = (exact_grad - mean_grad).norm()
+        if self.method == 'reinmax_test':
+            mean_t1_grad = mean_t1_grad / ct
+            std_t1_grad = (std_t1_grad / ct - mean_t1_grad ** 2).abs() ** 0.5
+            mean_t2_grad = mean_t2_grad / ct
+            std_t2_grad = (std_t2_grad / ct - mean_t2_grad ** 2).abs() ** 0.5
+            return (
+                diff / exact_grad.norm(),
+                diff / mean_grad.norm(),
+                std_grad.norm() / mean_grad.norm(),
+                (exact_grad * mean_grad).sum() / (exact_grad.norm() * mean_grad.norm()),
+                mean_grad.norm(),
+                std_t1_grad.norm(dim=(1, 2)).mean(),#.norm() / mean_t1_grad.norm(),
+                std_t2_grad.norm(dim=(1, 2)).mean(),#.norm() / mean_t2_grad.norm(),
+            )
+
         return (
-            diff / exact_grad.norm(), 
-            diff / mean_grad.norm(), 
-            std_grad.norm() / mean_grad.norm(), 
-            (exact_grad * mean_grad).sum() / (exact_grad.norm() * mean_grad.norm())
+            diff / exact_grad.norm(),
+            diff / mean_grad.norm(),
+            std_grad.norm(dim=(1, 2)).mean(),#std_grad.norm() / mean_grad.norm(),
+            (exact_grad * mean_grad).sum() / (exact_grad.norm() * mean_grad.norm()),
+            mean_grad.norm()
         )
