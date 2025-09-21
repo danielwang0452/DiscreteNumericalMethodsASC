@@ -104,6 +104,7 @@ def rao_gumbel(logits, tau=1.0, repeats=100, hard=True):
     action_bool = action.bool()
         
     logits_shape = logits.shape
+    #print(logits.shape)
     bs = logits_shape[0]
         
     E = torch.empty(logits_shape + (repeats,), 
@@ -111,7 +112,7 @@ def rao_gumbel(logits, tau=1.0, repeats=100, hard=True):
                     layout=logits.layout, 
                     device=logits.device,
                     memory_format=torch.legacy_contiguous_format).exponential_()
-                
+    # sample exponential using .exponential_()
     Ei = E[action_bool].view(logits_shape[:-1] + (repeats,)) # rv. for the sampled location 
 
     wei = logits_cpy.exp()
@@ -121,6 +122,7 @@ def rao_gumbel(logits, tau=1.0, repeats=100, hard=True):
     new_logits = E / (wei.unsqueeze(-1)) # (bs, latdim, catdim, repeats)
     new_logits[action_bool] = 0.0
     new_logits = -(new_logits + EiZ + 1e-20).log()
+
     logits_diff = new_logits - logits_cpy.unsqueeze(-1)
 
     prob = ((logits.unsqueeze(-1) + logits_diff)/tau).softmax(dim=-2).mean(dim=-1)

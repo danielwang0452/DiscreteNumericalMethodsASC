@@ -239,19 +239,22 @@ class VAE(nn.Module):
         
         mean_grad = torch.zeros_like(exact_grad).double()
         std_grad = torch.zeros_like(exact_grad).double()
-        if self.method == 'reinmax_test':
-            mean_t1_grad = torch.zeros_like(exact_grad).double()
-            mean_t2_grad = torch.zeros_like(exact_grad).double()
-            std_t1_grad = torch.zeros_like(exact_grad).double()
-            std_t2_grad = torch.zeros_like(exact_grad).double()
-        #print(exact_grad.shape)
+        if self.method in ['reinmax_test', 'reinmax_v2', 'reinmax_v3']:
+            mean_t1_grad = torch.zeros_like(mean_grad.view(-1, exact_grad.size()[-1])).double()
+            mean_t2_grad = torch.zeros_like(mean_grad.view(-1, exact_grad.size()[-1])).double()
+            std_t1_grad = torch.zeros_like(mean_grad.view(-1, exact_grad.size()[-1])).double()
+            std_t2_grad = torch.zeros_like(mean_grad.view(-1, exact_grad.size()[-1])).double()
+
         for i in range(ct):
-            grad = self.approx_bce_gradient(data)
+            if self.method == 'exact':
+                grad = torch.randn_like(exact_grad)
+            else:
+                grad = self.approx_bce_gradient(data)
             mean_grad += grad 
             std_grad += grad ** 2
-            if self.method == 'reinmax_test':
-                t1_grad = self.reinmax_term1.reshape((100, 4 ,8))
-                t2_grad = self.reinmax_term2.reshape((100, 4 ,8))
+            if self.method in ['reinmax_test', 'reinmax_v2', 'reinmax_v3']:
+                t1_grad = self.reinmax_term1#.reshape((100, 4 ,8))
+                t2_grad = self.reinmax_term2#.reshape((100, 4 ,8))
                 mean_t1_grad += t1_grad
                 mean_t2_grad += t2_grad
                 std_t1_grad += t1_grad ** 2
@@ -261,7 +264,7 @@ class VAE(nn.Module):
         std_grad = (std_grad / ct - mean_grad ** 2).abs() ** 0.5
         diff = (exact_grad - mean_grad).norm()  # this norm is taken over the batch dimension?
 
-        if self.method == 'reinmax_test':
+        if self.method in ['reinmax_test', 'reinmax_v2', 'reinmax_v3']:
             mean_t1_grad = mean_t1_grad / ct
             std_t1_grad = (std_t1_grad / ct - mean_t1_grad ** 2).abs() ** 0.5
             mean_t2_grad = mean_t2_grad / ct
@@ -269,17 +272,20 @@ class VAE(nn.Module):
             return (
                 diff / exact_grad.norm(),
                 diff / mean_grad.norm(),
-                std_grad.norm() / mean_grad.norm(),
+                (std_grad.reshape((100, 4 ,8)).norm(dim=(1, 2)) / mean_grad.reshape((100, 4 ,8)).norm(dim=(1, 2))).mean(),#.norm() / mean_grad.norm(),
                 (exact_grad * mean_grad).sum() / (exact_grad.norm() * mean_grad.norm()),
-                mean_grad.norm(),
-                std_t1_grad.norm(dim=(1, 2)).mean(),#.norm() / mean_t1_grad.norm(),
-                std_t2_grad.norm(dim=(1, 2)).mean(),#.norm() / mean_t2_grad.norm(),
+                mean_grad.norm(dim=(1, 2)).mean(),
+                (std_t1_grad.reshape((100, 4 ,8)).norm(dim=(1, 2)) / mean_t1_grad.reshape((100, 4 ,8)).norm(dim=(1, 2))).mean(),
+                (std_t2_grad.reshape((100, 4 ,8)).norm(dim=(1, 2)) / mean_t2_grad.reshape((100, 4 ,8)).norm(dim=(1, 2))).mean()
             )
+            # for t1_std, either
+            # std_t1_grad.norm() / mean_t1_grad.norm(),
+            # or (std_t1_grad.reshape((100, 4 ,8)).norm(dim=(1, 2)) / mean_t1_grad.reshape((100, 4 ,8)).norm(dim=(1, 2))).mean()
 
         return (
-            diff / exact_grad.norm(),
-            diff / mean_grad.norm(),
-            std_grad.norm(dim=(1, 2)).mean(),#std_grad.norm() / mean_grad.norm(),
+            diff.norm() / exact_grad.norm(),
+            diff.norm() / mean_grad.norm(),#(diff.reshape((100, 4 ,8)).norm(dim=(1, 2))/mean_grad.reshape((100, 4 ,8)).norm(dim=(1, 2))).mean(),
+            (std_grad.reshape((100, 4 ,8)).norm(dim=(1, 2))/mean_grad.reshape((100, 4 ,8)).norm(dim=(1, 2))).mean(),#std_grad.norm(dim=(1, 2)).mean(),#std_grad.norm() / mean_grad.norm(),
             (exact_grad * mean_grad).sum() / (exact_grad.norm() * mean_grad.norm()),
-            mean_grad.norm()
+            mean_grad.norm(dim=(1, 2)).mean()
         )

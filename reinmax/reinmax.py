@@ -2,8 +2,21 @@
 # Licensed under the MIT license.
 
 import torch
+import torch.nn.functional as F
+
 print('using pip install version of reinmax')
 
+def argmax_onehot(logits: torch.Tensor) -> torch.Tensor:
+    """
+    Given logits of shape (N, M), return a one-hot tensor of the same shape
+    indicating the argmax class for each categorical variable.
+    """
+    # indices of maximum along last dimension
+    idx = torch.argmax(logits, dim=-1, keepdim=True)  # shape (N, 1)
+    # one-hot encode
+    one_hot = torch.zeros_like(logits)
+    one_hot.scatter_(1, idx, 1.0)
+    return one_hot
 
 class ReinMax_Auto_test(torch.autograd.Function):
     """
@@ -42,26 +55,27 @@ class ReinMax_Auto_test(torch.autograd.Function):
     ):
         one_hot_sample, logits, y_soft, tau, alpha = ctx.saved_tensors
         one_hot_fixed = torch.zeros_like(one_hot_sample)
-        one_hot_fixed[:, 0] = 1.0
-        pi_alpha = (1 - 1 / (2 * alpha)) * (logits / tau).softmax(dim=-1) + 1 / (2 * alpha) * one_hot_fixed#one_hot_fixed
-        shifted_y_soft = .5 * ((logits / tau).softmax(dim=-1) + one_hot_sample)
-        grad_at_input_1 = (2 * grad_at_sample) * pi_alpha
+        one_hot_fixed[:, 4] = 1.0
+        one_hot_argmax = argmax_onehot(logits)
+        one_hot_logits = F.softmax(logits/tau, dim=-1)
+        D = one_hot_sample
+        # compute modified second term
+        shifted_y_soft = .5 * ((logits/tau).softmax(dim=-1) + D)
+        grad_at_input_1 = (2 * grad_at_sample) * shifted_y_soft
         grad_at_input_1 = grad_at_input_1 - shifted_y_soft * grad_at_input_1.sum(dim=-1, keepdim=True)
-
+        # compute first term
         grad_at_input_0 = (-1 / (2 * alpha) * grad_at_sample + grad_at_p) * y_soft
         grad_at_input_0 = grad_at_input_0 - y_soft * grad_at_input_0.sum(dim=-1, keepdim=True)
-
+        # save reinmax terms into the model
         if ctx.model_ref is not None:
             ctx.model_ref.reinmax_term1 = (-2) * grad_at_input_0.detach().clone()
             ctx.model_ref.reinmax_term2 = 0.5 * grad_at_input_1.detach().clone()
-
-        pi_alpha = (1 - 1 / (2 * alpha)) * (logits / tau).softmax(dim=-1) + 1 / (2 * alpha) * one_hot_sample
-        shifted_y_soft = .5 * ((logits / tau).softmax(dim=-1) + one_hot_sample)
-        grad_at_input_1 = (2 * grad_at_sample) * pi_alpha
-        grad_at_input_1 = grad_at_input_1 - shifted_y_soft * grad_at_input_1.sum(dim=-1, keepdim=True)
+        # return true reinmax gradient
+        #shifted_y_soft = .5 * ((logits / tau).softmax(dim=-1) + one_hot_sample)
+        #grad_at_input_1 = (2 * grad_at_sample) * shifted_y_soft
+        #grad_at_input_1 = grad_at_input_1 - shifted_y_soft * grad_at_input_1.sum(dim=-1, keepdim=True)
 
         grad_at_input = grad_at_input_0 + grad_at_input_1
-        # save reinmax terms into the model
 
         return grad_at_input - grad_at_input.mean(dim=-1, keepdim=True), None, None, None
 
@@ -130,8 +144,8 @@ class ReinMax_Auto(torch.autograd.Function):
 
         pi_alpha = (1-1/(2*alpha))*(logits / tau).softmax(dim=-1) +1/(2*alpha)*one_hot_sample
         shifted_y_soft = .5 * ((logits / tau).softmax(dim=-1) + one_hot_sample)
-        grad_at_input_1 = (2 * grad_at_sample) * pi_alpha
-        grad_at_input_1 = grad_at_input_1 - shifted_y_soft * grad_at_input_1.sum(dim=-1, keepdim=True)
+        grad_at_input_1 = (2 * grad_at_sample) * shifted_y_soft
+        grad_at_input_1 = grad_at_input_1 - shifted_y_soft * ((2*grad_at_sample)*pi_alpha).sum(dim=-1, keepdim=True)
         
         grad_at_input_0 = (-1/(2*alpha) * grad_at_sample + grad_at_p) * y_soft
         grad_at_input_0 = grad_at_input_0 - y_soft * grad_at_input_0.sum(dim=-1, keepdim=True)

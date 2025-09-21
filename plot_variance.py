@@ -15,7 +15,6 @@ import random
 
 device = 'cpu'
 
-
 def train(model, optimizer, epoch, train_loader, test_loader):
     train_loss, train_bce, train_kld, variance, reinmax_t1_var, reinmax_t2_var = 0, 0, 0, 0, 0, 0
     metrics = {}
@@ -29,7 +28,7 @@ def train(model, optimizer, epoch, train_loader, test_loader):
 
             print('Method: {}'.format(model.method))
             assert args.gradient_estimate_sample <= args.batch_size
-            if model.method == 'reinmax_test':
+            if model.method in ['reinmax_test', 'reinmax_v2']:
                 rb0, rb1, bstd, cos, norm, reinmax_t1_std, reinmax_t2_std = model.analyze_gradient(data[:args.gradient_estimate_sample, :], 1024)
             else:
                 rb0, rb1, bstd, cos, norm = model.analyze_gradient(data[:args.gradient_estimate_sample, :], 1024)
@@ -54,9 +53,6 @@ def train(model, optimizer, epoch, train_loader, test_loader):
         train_bce += bce.item() * len(data)
         train_kld += kld.item() * len(data)
         variance += model.theta_gradient.var(dim=0).norm().item() * len(data)
-        if model.method == 'reinmax_test':
-            reinmax_t1_var += model.reinmax_term1.var(dim=0).norm().item()
-            reinmax_t2_var += model.reinmax_term2.var(dim=0).norm().item()
 
         if batch_idx % args.log_interval == 0:
             '''
@@ -87,8 +83,6 @@ def train(model, optimizer, epoch, train_loader, test_loader):
     metrics['train_kld'] = train_kld / len(train_loader.dataset)
     metrics['variance'] = variance / len(train_loader.dataset)
     if model.method == 'reinmax_test':
-        metrics['reinmax_t1_var'] = reinmax_t1_var / len(train_loader.dataset)
-        metrics['reinmax_t2_var'] = reinmax_t2_var / len(train_loader.dataset)
         metrics['reinmax_t1_std'] = reinmax_t1_std
         metrics['reinmax_t2_std'] = reinmax_t2_std
 
@@ -105,7 +99,7 @@ def train(model, optimizer, epoch, train_loader, test_loader):
         metrics['cos'] = 0
         metrics['norm'] = norm
     ### Testing ############
-    '''
+
     model.eval()
     test_loss, test_bce, test_kld = 0, 0, 0
     temp = args.temperature
@@ -128,10 +122,10 @@ def train(model, optimizer, epoch, train_loader, test_loader):
     #    test_bce / len(test_loader.dataset),
     #    test_kld / len(test_loader.dataset)
     #))
-    metrics['test_loss'] = train_loss / len(train_loader.dataset)
-    metrics['test_bce'] = train_bce / len(train_loader.dataset)
-    metrics['test_kld'] = train_kld / len(train_loader.dataset)
-    '''
+    metrics['test_loss'] = test_loss / len(test_loader.dataset)
+    #metrics['test_bce'] = test_bce / len(test_loader.dataset),
+    #metrics['test_kld'] = test_kld / len(test_loader.dataset)
+
     ### MISC ############
 
     if args.log_images:
@@ -160,7 +154,7 @@ if __name__ == '__main__':
                         help='RK 2nd order parameter')  # 0 -> midpoint, 1/2 -> Heun, 1/4 -> Ralston
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='enables CUDA training')
-    parser.add_argument('--seed', type=int, default=0, metavar='S',
+    parser.add_argument('--seed', type=int, default=52, metavar='S',
                         help='random seed')
     parser.add_argument('--log-interval', type=int, default=100, metavar='N',
                         help='how many batches to wait before logging training status')
@@ -180,14 +174,17 @@ if __name__ == '__main__':
                         help="relu, leakyrelu")
     parser.add_argument('-s', '--gradient-estimate-sample', type=int, default=100,
                         help="number of samples used to estimate gradient bias (default 0: not estimate)")
-    methods = ['reinmax_test']#, 'gumbel', 'st', 'rao_gumbel', 'gst-1.0', 'reinmax']
+    methods = ['rao_gumbel']#, 'gumbel', 'st', 'rao_gumbel', 'gst-1.0', 'reinmax'], reinmax_test
     hyperparameters = {# lr, temp according to table 8 for VAE with 8x4 latents
         'gumbel': [0.0003, 0.5],
         'rao_gumbel': [0.0005, 0.5],
         'gst-1.0': [0.0005, 0.7],
         'st': [0.001, 1.3],
         'reinmax': [0.0005, 1.3],
-        'reinmax_test': [0.0005, 1.3]
+        'reinmax_v2': [0.0005, 1.0],
+        'reinmax_v3': [0.0005, 1.3],
+        'reinmax_test': [0.0005, 1.3],
+        'exact': [0.0005, 1.0]
     }
     args = parser.parse_args()
     args.cuda = not args.no_cuda and torch.cuda.is_available()
@@ -237,28 +234,29 @@ if __name__ == '__main__':
             train_metrics = train(model, optimizer, epoch, train_loader, test_loader)
             print(train_metrics)
             if model.method == 'reinmax_test':
-                wandb.log({
+                logging_dict = {
                     "train_loss": train_metrics["train_loss"],
+                    "test_loss": train_metrics["test_loss"],
                     "variance": train_metrics["variance"],
                     'Relative Bias w.r.t. exact grad': train_metrics['rb0'],
                     'Relative Bias approx grad': train_metrics['rb1'],
                     'Relative Std w.r.t. approx grad': train_metrics['bstd'],
                     'cos sim': train_metrics['cos'],
                     'grad_norm': train_metrics['norm'],
-                    'reinmax_t1_var': train_metrics['reinmax_t1_var'],
-                    'reinmax_t2_var': train_metrics['reinmax_t2_var'],
                     'reinmax_t1_std': train_metrics['reinmax_t1_std'],
                     'reinmax_t2_std': train_metrics['reinmax_t2_std']
-                }, step=epoch)
+                }
             else:
-                wandb.log({
+                logging_dict = {
                     "train_loss": train_metrics["train_loss"],
+                    "test_loss": train_metrics["test_loss"],
                     "variance": train_metrics["variance"],
                     'Relative Bias w.r.t. exact grad': train_metrics['rb0'],
                     'Relative Bias approx grad': train_metrics['rb1'],
                     'Relative Std w.r.t. approx grad': train_metrics['bstd'],
                     'cos sim': train_metrics['cos'],
                     'grad_norm': train_metrics['norm']
-                }, step=epoch)
+                }
+            wandb.log(logging_dict, step = epoch)
 
     wandb.finish()

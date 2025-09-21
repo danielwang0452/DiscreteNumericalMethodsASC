@@ -7,6 +7,19 @@ from  poly.model.basic import rao_gumbel, gst_mover, exact, \
 # import reinmax
 # print(reinmax.__file__)
 from reinmax import reinmax, reinmax_test
+from reinmax_v2 import reinmax_v2
+import random
+import torch
+import os
+
+manualSeed = 52
+random.seed(manualSeed)
+torch.manual_seed(manualSeed)
+torch.cuda.manual_seed(manualSeed)
+torch.cuda.manual_seed_all(manualSeed)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+os.environ['PYTHONHASHSEED'] = str(manualSeed)
 
 simple_method_mapping = {
     'reinmax': reinmax,
@@ -30,6 +43,14 @@ def categorical_repara(logits, temp, method='gumbel', alpha=1.0, model_ref=None)
 
     elif method == 'reinmax_test':
         sample, qy = reinmax_test(logits, model_ref, tau=temp, alpha=alpha)
+        return sample, qy
+
+    elif method == 'reinmax_v2':
+        sample, qy = reinmax_v2(logits, model_ref, tau=temp, jacobian_method='gumbel_D')
+        return sample, qy
+
+    elif method == 'reinmax_v3':
+        sample, qy = reinmax_v2(logits, model_ref, tau=temp, jacobian_method='gumbel_ST')
         return sample, qy
 
     elif method in simple_method_mapping:

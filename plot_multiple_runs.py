@@ -54,5 +54,5 @@ def run(task, parameter_vals):
 if __name__ == '__main__':
     task = 'mnist_vae'
     n_runs = 50
-    parameter_vals = np.linspace(0.0, 1.0, n_runs).tolist()
+    parameter_vals = np.linspace(-0.5, 1.5, n_runs).tolist()
     run(task, parameter_vals)
