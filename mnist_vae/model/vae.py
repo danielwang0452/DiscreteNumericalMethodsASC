@@ -3,7 +3,7 @@
 import torch
 import torch.nn.functional as F
 from torch import nn
-from .categorical_beta import categorical_repara
+from .categorical_beta import categorical_repara, categorical_repara_jacobian
 
 import math
 
@@ -83,8 +83,18 @@ class VAE(nn.Module):
         else:
             self.forward = self.forward_approx
         self.itensor = None
-        self.compute_code = self.compute_code_track#regular
+        #self.compute_code = self.compute_code_track#regular
 
+    def compute_code_jacobian(self, data, with_log_p=False):
+        theta = self.encoder(data)
+        z, qy = categorical_repara_jacobian(theta, self.temperature, self.method, self.alpha, self)
+        qy = qy.view(data.size(0), self.latent_dim, self.categorical_dim)
+        z = z.view(data.size(0), self.latent_dim, self.categorical_dim)
+        if with_log_p:
+            log_y = (z * theta).sum(dim=-1) - torch.logsumexp(theta, dim=-1)
+            return z, qy, log_y
+        else:
+            return z, qy
     def compute_code_regular(self, data, with_log_p=False):
         theta = self.encoder(data)
         z, qy = categorical_repara(theta, self.temperature, self.method, self.alpha)
@@ -104,7 +114,7 @@ class VAE(nn.Module):
             #print(self.theta_gradient)
             return gradient 
         theta.register_hook(theta_gradient_save)
-        z, qy = categorical_repara(theta, self.temperature, self.method, self.alpha, self)
+        z, qy = categorical_repara_jacobian(theta, self.temperature, self.method, self.alpha, self)
         qy = qy.view(data.size(0), self.latent_dim, self.categorical_dim)
         z = z.view(data.size(0), self.latent_dim, self.categorical_dim)
         if with_log_p:

@@ -8,6 +8,7 @@ from  poly.model.basic import rao_gumbel, gst_mover, exact, \
 # print(reinmax.__file__)
 from reinmax import reinmax, reinmax_test
 from reinmax_v2 import reinmax_v2
+from reinmax_jacobians import reinmax_jacobian
 import random
 import torch
 import os
@@ -31,6 +32,10 @@ simple_method_mapping = {
 repeat_method_mapping = {
     'rao': ('rao_gumbel', rao_gumbel, int),
 }
+def categorical_repara_jacobian(logits, temp, method='gumbel', alpha=1.0, model_ref=None):
+    sample, qy = reinmax_jacobian(logits, model_ref, tau=temp, jacobian_method=method)
+    return sample, qy
+
 
 def categorical_repara(logits, temp, method='gumbel', alpha=1.0, model_ref=None):
     if method == 'gumbel':

@@ -117,6 +117,35 @@ def rao_gumbel_v2(logits, D, tau=1.0, repeats=100, hard=True):
     #action = action - prob.detach() + prob if hard else prob
     return jacobian_avg #action.view(logits_shape), distribution_original
 
+def compute_sample_jacobian(logits, D, pi, E):
+    '''
+    :param logits: BL, C
+    :param D: BL, C
+    :param pi: BL, R, C
+    :param E: BL, R, C
+    :return: J: BL, R, C, C
+    '''
+    BL, R, C = E.shape
+    # square bracket term
+    logits = logits.unsqueeze(1).repeat(1, R, 1) # BL, R, C
+    logits_exp = logits.exp()
+    Z = logits_exp.sum(dim=-1, keepdim=True).unsqueeze(-1) # BL, R, C, C
+    #print(E.shape, logits_exp.shape)
+    diag = torch.diag_embed(E/logits_exp)
+    pi_matrix = pi.unsqueeze(-2).repeat((1, 1, C, 1)) # BL, R, C, C
+    E_D = (E*D.unsqueeze(1)).sum(dim=-1).unsqueeze(-1).unsqueeze(-1) # BL, R, C, C
+    sq_bracket = diag + E_D*pi_matrix*(-1/Z.log()**2)
+    # reciprocal term
+    E_j = (E/logits.exp()).unsqueeze(-1).repeat(1, 1, 1, C)
+    reciprocal = -1/(E_j+E_D/Z)
+    # multiply them
+    J = reciprocal * sq_bracket
+    # change entries corresponding to sampled D
+    mask = D.unsqueeze(1).unsqueeze(-1).repeat(1, R, 1, C) # BL, R, C, C
+    #print(J.shape, mask.shape, D.shape, pi_matrix.shape)
+    J = (1-mask)*J + mask*pi_matrix
+    return J
+
 def rao_gumbel_v3(logits, D, tau=1.0, repeats=100, hard=True):
     '''
     :param logits:
@@ -152,7 +181,6 @@ def rao_gumbel_v3(logits, D, tau=1.0, repeats=100, hard=True):
     new_logits = E / (wei.unsqueeze(-1))  # (bs, latdim, catdim, repeats)
     new_logits[action_bool] = 0.0
     new_logits = -(new_logits + EiZ + 1e-20).log()
-
     new_pi = (new_logits/tau).softmax(dim=-2)
 
     # now compute the softmax jacobian at pi', then average
@@ -161,6 +189,12 @@ def rao_gumbel_v3(logits, D, tau=1.0, repeats=100, hard=True):
     new_pi = new_pi.reshape(B * L, C, R).permute((0, 2, 1))  # (BL, R, C)
     pi_diag = torch.diag_embed(new_pi)
     jacobian = pi_diag - torch.matmul(new_pi.unsqueeze(-1), new_pi.unsqueeze(-2))
+    #sample_jacobian = compute_sample_jacobian(logits.reshape(B * L, C),
+    #                                          D.reshape(B * L, C),
+    #                                          new_pi,
+    #                                          E.reshape(B * L, C, R).permute((0, 2, 1))
+    #                                          )
+    #jacobian = torch.matmul(jacobian, sample_jacobian)
     jacobian_avg = jacobian.mean(dim=1)/tau
     #logits_diff = new_logits - logits_cpy.unsqueeze(-1)
     #prob = ((logits.unsqueeze(-1) + logits_diff) / tau).softmax(dim=-2).mean(dim=-1)

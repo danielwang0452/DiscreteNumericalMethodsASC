@@ -22,24 +22,6 @@ def train(model, optimizer, epoch, train_loader, test_loader):
         data = data.view(data.size(0), -1).to(device)
         if args.cuda:
             data = data.cuda()
-        if 0 == batch_idx and args.gradient_estimate_sample > 0:
-            _, qy = model.compute_code(data[:args.gradient_estimate_sample, :])
-            print('Entropy: {}'.format(torch.sum(qy * torch.log(qy + 1e-10), dim=-1).mean().item()))
-
-            print('Method: {}'.format(model.method))
-            assert args.gradient_estimate_sample <= args.batch_size
-            if model.method in ['reinmax_test', 'reinmax_v2', 'reinmax_v3']:
-                rb0, rb1, bstd, cos, norm, reinmax_t1_std, reinmax_t2_std = model.analyze_gradient(data[:args.gradient_estimate_sample, :], 1024)
-            else:
-                rb0, rb1, bstd, cos, norm = model.analyze_gradient(data[:args.gradient_estimate_sample, :], 1024)
-            print('Train Epoch: {} -- Training Epoch Relative Bias Ratio (w.r.t. exact gradient): {} '.format(
-                epoch, rb0.item()))
-            print('Train Epoch: {} -- Training Epoch Relative Bias Ratio (w.r.t. approx gradient): {} '.format(
-                epoch, rb1.item()))
-            print('Train Epoch: {} -- Training Epoch Relative Std (w.r.t. approx gradient): {} '.format(epoch,
-                                                                                                        bstd.item()))
-            print('Train Epoch: {} -- Training Epoch COS SIM: {} '.format(epoch, cos.item()))
-            model.zero_grad()
 
         optimizer.zero_grad()
         bce, kld, _, qy = model(data)
@@ -52,7 +34,7 @@ def train(model, optimizer, epoch, train_loader, test_loader):
         train_loss += loss.item() * len(data)
         train_bce += bce.item() * len(data)
         train_kld += kld.item() * len(data)
-        variance += model.theta_gradient.var(dim=0).norm().item() * len(data)
+       # variance += model.theta_gradient.var(dim=0).norm().item() * len(data)
 
         if batch_idx % args.log_interval == 0:
             '''
@@ -82,22 +64,7 @@ def train(model, optimizer, epoch, train_loader, test_loader):
     metrics['train_bce'] = train_bce / len(train_loader.dataset)
     metrics['train_kld'] = train_kld / len(train_loader.dataset)
     metrics['variance'] = variance / len(train_loader.dataset)
-    if model.method == 'reinmax_test':
-        metrics['reinmax_t1_std'] = reinmax_t1_std
-        metrics['reinmax_t2_std'] = reinmax_t2_std
 
-    if args.gradient_estimate_sample > 0:
-        metrics['rb0'] = rb0
-        metrics['rb1'] = rb1
-        metrics['bstd'] = bstd
-        metrics['cos'] = cos
-        metrics['norm'] = norm
-    else:
-        metrics['rb0'] = 0
-        metrics['rb1'] = 0
-        metrics['bstd'] = 0
-        metrics['cos'] = 0
-        metrics['norm'] = norm
     ### Testing ############
 
     model.eval()
@@ -144,7 +111,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='VAE MNIST Example')
     parser.add_argument('--batch-size', type=int, default=100, metavar='N',
                         help='input batch size for training (default: 100)')
-    parser.add_argument('--epochs', type=int, default=50, metavar='N',
+    parser.add_argument('--epochs', type=int, default=160, metavar='N',
                         help='number of epochs to train') # 160
     parser.add_argument('--max-updates', type=int, default=0, metavar='N',
                         help='number of updates to train')
@@ -164,9 +131,9 @@ if __name__ == '__main__':
                         help='log the sample & reconstructed images')
     parser.add_argument('--lr', type=float, default=5e-4, #1e-3,
                         help="learning rate for the optimizer")
-    parser.add_argument('--latent-dim', type=int, default=4,#128
+    parser.add_argument('--latent-dim', type=int, default=30,#128
                         help="latent dimension")
-    parser.add_argument('--categorical-dim', type=int, default=8,#10
+    parser.add_argument('--categorical-dim', type=int, default=10,#10
                         help="categorical dimension")
     parser.add_argument('--optim', type=str, default='adam',
                         help="adam, radam")
@@ -174,17 +141,48 @@ if __name__ == '__main__':
                         help="relu, leakyrelu")
     parser.add_argument('-s', '--gradient-estimate-sample', type=int, default=100,
                         help="number of samples used to estimate gradient bias (default 0: not estimate)")
-    methods = ['st']#, 'gumbel', 'st', 'rao_gumbel', 'gst-1.0', 'reinmax'], reinmax_test
+    latent_dim, categorical_dim = 64, 8
+    methods = ['reinmax_v3']#, 'gumbel', 'st', 'rao_gumbel', 'gst-1.0', 'reinmax'], reinmax_test
     hyperparameters = {# lr, temp according to table 8 for VAE with 8x4 latents
-        'gumbel': [0.0003, 0.5],
-        'rao_gumbel': [0.0005, 0.5],
-        'gst-1.0': [0.0005, 0.7],
-        'st': [0.001, 1.3],
-        'reinmax': [0.0005, 1.3],
-        'reinmax_v2': [0.0005, 1.0],
-        'reinmax_v3': [0.0005, 1.0],
-        'reinmax_test': [0.0005, 1.3],
-        'exact': [0.0005, 1.0]
+        ('gumbel', 10, 30): [0.0005, 0.5, 'RAdam'],
+        ('rao_gumbel', 10, 30): [0.0005, 1.0, 'RAdam'],
+        ('gst-1.0', 10, 30): [0.0005, 0.5, 'RAdam'],
+        ('st', 10, 30): [0.007, 1.4, 'RAdam'],
+        ('reinmax', 10, 30): [0.0005, 1.3, 'RAdam'],
+        ('reinmax_v2', 10, 30): [0.0005, 1.0, 'RAdam'],
+        ('reinmax_v3', 10, 30): [0.0005, 1.0, 'RAdam'],
+
+        ('gumbel', 4, 24): [0.0005, 0.3, 'RAdam'],
+        ('rao_gumbel', 4, 24): [0.0005, 0.3, 'RAdam'],
+        ('gst-1.0', 4, 24): [0.0005, 0.5, 'RAdam'],
+        ('st', 4, 24): [0.001, 1.5, 'RAdam'],
+        ('reinmax', 4, 24): [0.0005, 1.5, 'RAdam'],
+        ('reinmax_v2', 4, 24): [0.0005, 1.0, 'RAdam'],
+        ('reinmax_v3', 4, 24): [0.0005, 1.0, 'RAdam'],
+
+        ('gumbel', 8, 16): [0.0005, 0.5, 'RAdam'],
+        ('rao_gumbel', 8, 16): [0.0007, 0.7, 'RAdam'],
+        ('gst-1.0', 8, 16): [0.0007, 0.5, 'RAdam'],
+        ('st', 8, 16): [0.001, 1.5, 'RAdam'],
+        ('reinmax', 8, 16): [0.0007, 1.5, 'RAdam'],
+        ('reinmax_v2', 8, 16): [0.0005, 1.0, 'RAdam'],
+        ('reinmax_v3', 8, 16): [0.0005, 1.0, 'RAdam'],
+
+        ('gumbel', 16, 12): [0.0007, 0.7, 'RAdam'],
+        ('rao_gumbel', 16, 12): [0.0005, 1.0, 'Adam'],
+        ('gst-1.0', 16, 12): [0.0007, 0.5, 'RAdam'],
+        ('st', 16, 12): [0.0005, 1.5, 'Adam'],
+        ('reinmax', 16, 12): [0.0007, 1.5, 'RAdam'],
+        ('reinmax_v2', 16, 12): [0.0005, 1.0, 'RAdam'],
+        ('reinmax_v3', 16, 12): [0.0005, 1.0, 'RAdam'],
+
+        ('gumbel', 64, 8): [0.0007, 0.7, 'RAdam'],
+        ('rao_gumbel', 64, 8): [0.0007, 2.0, 'Adam'],
+        ('gst-1.0', 64, 8): [0.0007, 0.7, 'RAdam'],
+        ('st', 64, 8): [0.0005, 1.5, 'Adam'],
+        ('reinmax', 64, 8): [0.0005, 1.5, 'RAdam'],
+        ('reinmax_v2', 64, 8): [0.0005, 1.0, 'RAdam'],
+        ('reinmax_v3', 64, 8): [0.0005, 1.0, 'RAdam'],
     }
     args = parser.parse_args()
     args.cuda = not args.no_cuda and torch.cuda.is_available()
@@ -220,43 +218,30 @@ if __name__ == '__main__':
         print(method)
         # set up model
         model = VAE(
-            latent_dim=args.latent_dim,
-            categorical_dim=args.categorical_dim,
-            temperature=hyperparameters[method][1],
+            latent_dim=latent_dim,
+            categorical_dim=categorical_dim,
+            temperature=hyperparameters[(method, latent_dim, categorical_dim)][1],
             method=method,
             activation=args.activation
         )
-        model.compute_code = model.compute_code_track  # regular
-        optimizer = optim.Adam(model.parameters(), lr=hyperparameters[method][0])
+        print(hyperparameters[(method, latent_dim, categorical_dim)][0], model.temperature)
+        model.compute_code = model.compute_code_jacobian
+        if hyperparameters[(method, latent_dim, categorical_dim)][2] =='Adam':
+            optimizer = optim.Adam(model.parameters(), lr=hyperparameters[(method, latent_dim, categorical_dim)][0])
+        else:
+            optimizer = optim.RAdam(model.parameters(), lr=hyperparameters[(method, latent_dim, categorical_dim)][0])
         model.train()
         for epoch in range(1, args.epochs + 1):
             print(epoch)
             train_metrics = train(model, optimizer, epoch, train_loader, test_loader)
             print(train_metrics)
-            if model.method == 'reinmax_test':
-                logging_dict = {
-                    "train_loss": train_metrics["train_loss"],
-                    "test_loss": train_metrics["test_loss"],
-                    "variance": train_metrics["variance"],
-                    'Relative Bias w.r.t. exact grad': train_metrics['rb0'],
-                    'Relative Bias approx grad': train_metrics['rb1'],
-                    'Relative Std w.r.t. approx grad': train_metrics['bstd'],
-                    'cos sim': train_metrics['cos'],
-                    'grad_norm': train_metrics['norm'],
-                    'reinmax_t1_std': train_metrics['reinmax_t1_std'],
-                    'reinmax_t2_std': train_metrics['reinmax_t2_std']
-                }
-            else:
-                logging_dict = {
-                    "train_loss": train_metrics["train_loss"],
-                    "test_loss": train_metrics["test_loss"],
-                    "variance": train_metrics["variance"],
-                    'Relative Bias w.r.t. exact grad': train_metrics['rb0'],
-                    'Relative Bias approx grad': train_metrics['rb1'],
-                    'Relative Std w.r.t. approx grad': train_metrics['bstd'],
-                    'cos sim': train_metrics['cos'],
-                    'grad_norm': train_metrics['norm']
-                }
+
+            logging_dict = {
+                "train_loss": train_metrics["train_loss"],
+                "test_loss": train_metrics["test_loss"],
+            }
             wandb.log(logging_dict, step = epoch)
+            if epoch+1 in [50, 160]:
+                torch.save(model.state_dict(), f'/Users/danielwang/PycharmProjects/ReinMax_ASC/model_checkpoints/vae_{latent_dim}x{categorical_dim}_epoch_{epoch+1}.pth')
 
     wandb.finish()
