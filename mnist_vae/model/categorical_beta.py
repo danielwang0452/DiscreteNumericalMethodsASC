@@ -36,11 +36,14 @@ def categorical_repara_jacobian(logits, temp, method='gumbel', alpha=1.0, model_
     sample, qy = reinmax_jacobian(logits, model_ref, tau=temp, jacobian_method=method)
     return sample, qy
 
-
 def categorical_repara(logits, temp, method='gumbel', alpha=1.0, model_ref=None):
     if method == 'gumbel':
         qy = F.softmax(logits, dim=-1)
         return F.gumbel_softmax(logits, tau=temp, hard=True), qy
+
+    elif method == 'gaussian':
+        sample, qy = reinmax_jacobian(logits, model_ref, tau=temp, jacobian_method=method)
+        return sample, qy
 
     elif method == 'reinmax':
         sample, qy = reinmax(logits, tau=temp, alpha=alpha)

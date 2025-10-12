@@ -72,6 +72,7 @@ if __name__ == '__main__':
         method=args.method,
         activation=args.activation
     )
+    model.compute_code = model.compute_code_track
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     # load pretrained VAE
     checkpoint = torch.load('/Users/danielwang/PycharmProjects/ReinMax_ASC/model_checkpoints/vae_epoch_50.pth',

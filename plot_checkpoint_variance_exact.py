@@ -13,7 +13,7 @@ from mnist_vae.model.vae import VAE
 import torch.func as fc
 import random
 import matplotlib.pyplot as plt
-
+import json
 device = 'cpu'
 
 if __name__ == '__main__':
@@ -118,7 +118,7 @@ if __name__ == '__main__':
         'reinmax_v3': [0.0005, 0.5],
         'reinmax_test': [0.0005, 1.3]
     }
-    methods = ['reinmax', 'gumbel', 'st']#gst-1.0', 'rao_gumbel']
+    methods = ['reinmax_test', 'reinmax', 'st']#, 'rao_gumbel']
     #methods = ['reinmax_v3' for _ in range(0)]
     temps = torch.ones(len(methods))
     temps = torch.linspace(0.05, 2.0, len(methods))
@@ -141,8 +141,8 @@ if __name__ == '__main__':
         model.zero_grad()
 
         for d, dict in enumerate(dicts):
-            dict[f'{method}_{str(model.temperature)}'] = values[d]
-        jacobian_dict[f'{method}_{str(model.temperature)}'] = model.jacobian
+            dict[f'{method}_{str(model.temperature)}'] = values[d].item()
+        #jacobian_dict[f'{method}_{str(model.temperature)}'] = model.jacobian
     # plot
     for d, dict in enumerate(dicts):
         # Extract keys and values
@@ -161,6 +161,8 @@ if __name__ == '__main__':
         plt.xticks(rotation=30)
 
         plt.savefig(f"saved_figs/{metrics[d]}.png")
+    with open("saved_figs/data.json", "w") as f:
+        json.dump(dicts, f, indent=4)
     # plot jacobians
     def visualise_jacobians(jacobian_dict, num_samples=1, save_path=f"saved_figs/jacobians.png"):
         """
@@ -200,5 +202,5 @@ if __name__ == '__main__':
         plt.close(fig)
         print(f"Saved visualization to {save_path}")
 
-    visualise_jacobians(jacobian_dict)
+    #visualise_jacobians(jacobian_dict)
 

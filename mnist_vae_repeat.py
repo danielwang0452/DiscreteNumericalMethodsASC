@@ -75,7 +75,6 @@ model = VAE(
     method=args.method,
     activation=args.activation
 )
-
 def vae_single_run(run, parameter_val):
     torch.manual_seed(args.seed)
     model = VAE(
@@ -85,6 +84,7 @@ def vae_single_run(run, parameter_val):
     method=args.method,
     activation=args.activation
 ).to(device)
+    model.compute_code = model.compute_code_regular
     model.method = args.method
     model.alpha = 0.5/(1-parameter_val+1e-7) # where paramter_val is beta
     optimizer = optim.Adam(model.parameters(), lr=args.lr)

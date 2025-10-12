@@ -1,5 +1,6 @@
 # plot the sample variance over course of training
 import argparse
+import copy
 import os
 import sys
 import numpy as np
@@ -16,90 +17,48 @@ import random
 device = 'cpu'
 
 def train(model, optimizer, epoch, train_loader, test_loader):
+    method = model.method
     train_loss, train_bce, train_kld, variance, reinmax_t1_var, reinmax_t2_var = 0, 0, 0, 0, 0, 0
     metrics = {}
     for batch_idx, (data, _) in enumerate(train_loader):
         data = data.view(data.size(0), -1).to(device)
         if args.cuda:
             data = data.cuda()
+
+        rb0, rb1, bstd, cos, norm = 0, 0, 0, 0, 0
+
         if 0 == batch_idx and args.gradient_estimate_sample > 0:
             _, qy = model.compute_code(data[:args.gradient_estimate_sample, :])
             print('Entropy: {}'.format(torch.sum(qy * torch.log(qy + 1e-10), dim=-1).mean().item()))
 
             print('Method: {}'.format(model.method))
             assert args.gradient_estimate_sample <= args.batch_size
-            if model.method in ['reinmax_test', 'reinmax_v2', 'reinmax_v3']:
-                rb0, rb1, bstd, cos, norm, reinmax_t1_std, reinmax_t2_std = model.analyze_gradient(data[:args.gradient_estimate_sample, :], 1024)
-            else:
-                rb0, rb1, bstd, cos, norm = model.analyze_gradient(data[:args.gradient_estimate_sample, :], 1024)
-            print('Train Epoch: {} -- Training Epoch Relative Bias Ratio (w.r.t. exact gradient): {} '.format(
-                epoch, rb0.item()))
-            print('Train Epoch: {} -- Training Epoch Relative Bias Ratio (w.r.t. approx gradient): {} '.format(
-                epoch, rb1.item()))
-            print('Train Epoch: {} -- Training Epoch Relative Std (w.r.t. approx gradient): {} '.format(epoch,
-                                                                                                        bstd.item()))
-            print('Train Epoch: {} -- Training Epoch COS SIM: {} '.format(epoch, cos.item()))
-            model.zero_grad()
+            rb0, rb1, bstd, cos, norm = model.analyze_gradient(data[:args.gradient_estimate_sample, :], 1024)
 
-        optimizer.zero_grad()
+            model.zero_grad()
+            model.method = method
+
         bce, kld, _, qy = model(data)
         loss = bce + kld
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        #total_updates += 1
+        # total_updates += 1
 
         train_loss += loss.item() * len(data)
         train_bce += bce.item() * len(data)
         train_kld += kld.item() * len(data)
-        variance += model.theta_gradient.var(dim=0).norm().item() * len(data)
 
-        if batch_idx % args.log_interval == 0:
-            '''
-            print(f'epoch {epoch} loss {loss.item()}')
-            print(
-                'Train Epoch: {} [{}/{} ({:.0f}%)] \t Loss: {:.2f} \t BCE: {:.2f} \t KLD: {:.2f} \t Max of Softmax: {:.2f} +/- {:.2f} in [{:.2f} -- {:.2f}]'.format(
-                    epoch, batch_idx * len(data), len(train_loader.dataset),
-                           100. * batch_idx / len(train_loader),
-                    loss.item(),
-                    bce.item(),
-                    kld.item(),
-                    qy.view(-1, args.categorical_dim).max(dim=-1)[0].mean(),
-                    qy.view(-1, args.categorical_dim).max(dim=-1)[0].std(),
-                    qy.view(-1, args.categorical_dim).max(dim=-1)[0].max(),
-                    qy.view(-1, args.categorical_dim).max(dim=-1)[0].min(),
-                )
-            )
-            '''
 
-    #print('====> Epoch: {} Average loss: {:.6f} \t BCE: {:.6f} KLD: {:.6f}'.format(
-    #    epoch,
-    #    train_loss / len(train_loader.dataset),
-    #    train_bce / len(train_loader.dataset),
-    #    train_kld / len(train_loader.dataset),
-    #))
     metrics['train_loss'] =  train_loss / len(train_loader.dataset)
     metrics['train_bce'] = train_bce / len(train_loader.dataset)
     metrics['train_kld'] = train_kld / len(train_loader.dataset)
-    metrics['variance'] = variance / len(train_loader.dataset)
-    if model.method == 'reinmax_test':
-        metrics['reinmax_t1_std'] = reinmax_t1_std
-        metrics['reinmax_t2_std'] = reinmax_t2_std
-
-    if args.gradient_estimate_sample > 0:
-        metrics['rb0'] = rb0
-        metrics['rb1'] = rb1
-        metrics['bstd'] = bstd
-        metrics['cos'] = cos
-        metrics['norm'] = norm
-    else:
-        metrics['rb0'] = 0
-        metrics['rb1'] = 0
-        metrics['bstd'] = 0
-        metrics['cos'] = 0
-        metrics['norm'] = norm
-    ### Testing ############
-
+    metrics['rb0'] = rb0
+    metrics['rb1'] = rb1
+    metrics['bstd'] = bstd
+    metrics['cos'] = cos
+    metrics['norm'] = norm
+    # test
     model.eval()
     test_loss, test_bce, test_kld = 0, 0, 0
     temp = args.temperature
@@ -117,27 +76,9 @@ def train(model, optimizer, epoch, train_loader, test_loader):
                                     recon_batch.view(args.batch_size, 1, 28, 28)[:n]])
             save_image(comparison.data.cpu(),
                        'data/reconstruction_' + str(epoch) + '.png', nrow=n)
-    #print('====> Test set loss: {:.6f} \t BCE: {:.6f} \t KLD: {:.6f}'.format(
-    #   test_loss / len(test_loader.dataset),
-    #    test_bce / len(test_loader.dataset),
-    #    test_kld / len(test_loader.dataset)
-    #))
     metrics['test_loss'] = test_loss / len(test_loader.dataset)
-    #metrics['test_bce'] = test_bce / len(test_loader.dataset),
-    #metrics['test_kld'] = test_kld / len(test_loader.dataset)
-
-    ### MISC ############
-
-    if args.log_images:
-        M = 64 * args.latent_dim
-        np_y = np.zeros((M, args.categorical_dim), dtype=np.float32)
-        np_y[range(M), np.random.choice(args.categorical_dim, M)] = 1
-        np_y = np.reshape(np_y, [M // args.latent_dim, args.latent_dim, args.categorical_dim])
-        sample = torch.from_numpy(np_y).view(M // args.latent_dim, args.latent_dim * args.categorical_dim)
-        if args.cuda: sample = sample.cuda()
-        sample = model.decoder.decode(sample).cpu()
-        save_image(sample.data.view(M // args.latent_dim, 1, 28, 28),
-                   'data/sample_' + str(epoch) + '.png')
+    metrics['test_bce'] = test_bce / len(test_loader.dataset)
+    metrics['test_kld'] = test_kld / len(test_loader.dataset)
     return metrics
 
 if __name__ == '__main__':
@@ -174,25 +115,80 @@ if __name__ == '__main__':
                         help="relu, leakyrelu")
     parser.add_argument('-s', '--gradient-estimate-sample', type=int, default=100,
                         help="number of samples used to estimate gradient bias (default 0: not estimate)")
-    methods = ['reinmax_v2']#, 'gumbel', 'st', 'rao_gumbel', 'gst-1.0', 'reinmax'], reinmax_test
-    hyperparameters = {# lr, temp according to table 8 for VAE with 8x4 latents
-        'gaussian': [0.0003, 0.5],
-        'gumbel': [0.0003, 0.5],
-        'rao_gumbel': [0.0005, 0.5],
-        'gst-1.0': [0.0005, 0.7],
-        'st': [0.001, 1.3],
-        'reinmax': [0.0005, 1.3],
-        'reinmax_v2': [0.0005, 1.0],
-        'reinmax_v3': [0.0005, 1.0],
-        'reinmax_test': [0.0005, 1.3],
-        'exact': [0.0005, 1.0]
+    hyperparameters = {  # lr, temp according to table 8 for VAE with 8x4 latents
+        ('gaussian', 64, 64): [0.0005, 0.5, 'RAdam'],
+        ('gumbel', 64, 64): [0.0005, 0.5, 'RAdam'],
+        ('rao_gumbel', 32, 32): [0.0005, 1.0, 'RAdam'],
+        ('gst-1.0', 32, 32): [0.0005, 0.5, 'RAdam'],
+        ('st', 32, 32): [0.007, 1.4, 'RAdam'],
+        ('reinmax', 64, 64): [0.0005, 1.3, 'RAdam'],
+        ('reinmax_v2', 32, 32): [0.0005, 1.0, 'RAdam'],
+        ('reinmax_v3', 32, 32): [0.0005, 1.0, 'RAdam'],
+
+
+        ('gaussian', 10, 30): [0.0005, 0.5, 'RAdam'],
+        ('gumbel', 10, 30): [0.0005, 0.5, 'RAdam'],
+        ('rao_gumbel', 10, 30): [0.0005, 1.0, 'RAdam'],
+        ('gst-1.0', 10, 30): [0.0005, 0.5, 'RAdam'],
+        ('st', 10, 30): [0.007, 1.4, 'RAdam'],
+        ('reinmax', 10, 30): [0.0005, 1.3, 'RAdam'],
+        ('reinmax_v2', 10, 30): [0.0005, 1.0, 'RAdam'],
+        ('reinmax_v3', 10, 30): [0.0005, 1.0, 'RAdam'],
+
+        ('gaussian', 4, 24): [0.0005, 0.3, 'RAdam'],
+        ('gumbel', 4, 24): [0.0005, 0.3, 'RAdam'],
+        ('rao_gumbel', 4, 24): [0.0005, 0.3, 'RAdam'],
+        ('gst-1.0', 4, 24): [0.0005, 0.5, 'RAdam'],
+        ('st', 4, 24): [0.001, 1.5, 'RAdam'],
+        ('reinmax', 4, 24): [0.0005, 1.5, 'RAdam'],
+        ('reinmax_v2', 4, 24): [0.0005, 1.0, 'RAdam'],
+        ('reinmax_v3', 4, 24): [0.0005, 1.0, 'RAdam'],
+
+        ('gaussian', 8, 16): [0.0005, 0.5, 'RAdam'],
+        ('gumbel', 8, 16): [0.0005, 0.5, 'RAdam'],
+        ('rao_gumbel', 8, 16): [0.0007, 0.7, 'RAdam'],
+        ('gst-1.0', 8, 16): [0.0007, 0.5, 'RAdam'],
+        ('st', 8, 16): [0.001, 1.5, 'RAdam'],
+        ('reinmax', 8, 16): [0.0007, 1.5, 'RAdam'],
+        ('reinmax_v2', 8, 16): [0.0005, 1.0, 'RAdam'],
+        ('reinmax_v3', 8, 16): [0.0005, 1.0, 'RAdam'],
+
+        ('gaussian', 16, 12): [0.0007, 0.7, 'RAdam'],
+        ('gumbel', 16, 12): [0.0007, 0.7, 'RAdam'],
+        ('rao_gumbel', 16, 12): [0.0005, 1.0, 'Adam'],
+        ('gst-1.0', 16, 12): [0.0007, 0.5, 'RAdam'],
+        ('st', 16, 12): [0.0005, 1.5, 'Adam'],
+        ('reinmax', 16, 12): [0.0007, 1.5, 'RAdam'],
+        ('reinmax_v2', 16, 12): [0.0005, 1.0, 'RAdam'],
+        ('reinmax_v3', 16, 12): [0.0005, 1.0, 'RAdam'],
+
+        ('gaussian', 64, 8): [0.0007, 0.7, 'RAdam'],
+        ('gumbel', 64, 8): [0.0007, 0.7, 'RAdam'],
+        ('rao_gumbel', 64, 8): [0.0007, 2.0, 'Adam'],
+        ('gst-1.0', 64, 8): [0.0007, 0.7, 'RAdam'],
+        ('st', 64, 8): [0.0005, 1.5, 'Adam'],
+        ('reinmax', 64, 8): [0.0005, 1.5, 'RAdam'],
+        ('reinmax_v2', 64, 8): [0.0005, 1.0, 'RAdam'],
+        ('reinmax_v3', 64, 8): [0.0005, 1.0, 'RAdam'],
+
+        ('gaussian', 8, 4): [0.0003, 0.5, 'Adam'],
+        ('gumbel', 8, 4): [0.0003, 0.5, 'Adam'],
+        ('rao_gumbel', 8, 4): [0.0005, 0.5, 'Adam'],
+        ('gst-1.0', 8, 4): [0.0005, 0.7, 'Adam'],
+        ('st', 8, 4): [0.001, 1.3, 'Adam'],
+        ('reinmax', 8, 4): [0.0005, 1.3, 'Adam'],
+        ('reinmax_v2', 8, 4): [0.0005, 1.0, 'Adam'],
+        ('reinmax_v3', 8, 4): [0.0005, 1.0, 'Adam'],
     }
+    categorical_dim, latent_dim = 8, 4
+    print(categorical_dim, latent_dim)
+    methods = ['reinmax_v2']#, 'gumbel', 'st', 'rao_gumbel', 'gst-1.0', 'reinmax'], reinmax_test
     args = parser.parse_args()
     args.cuda = not args.no_cuda and torch.cuda.is_available()
 
     wandb.init(
         project="ReinMax_ASC",
-        name=f"vae_{methods[0]}",
+        name=f"vae_{methods[0]}_{categorical_dim}x{latent_dim}",
         config={
             "method": methods[0]
         }
@@ -221,43 +217,27 @@ if __name__ == '__main__':
         print(method)
         # set up model
         model = VAE(
-            latent_dim=args.latent_dim,
-            categorical_dim=args.categorical_dim,
-            temperature=hyperparameters[method][1],
+            latent_dim=latent_dim,
+            categorical_dim=categorical_dim,
+            temperature=hyperparameters[(method, categorical_dim, latent_dim)][1],
             method=method,
             activation=args.activation
         )
-        model.compute_code = model.compute_code_track  # regular
-        optimizer = optim.Adam(model.parameters(), lr=hyperparameters[method][0])
+        model.compute_code = model.compute_code_track#jacobian
+        if hyperparameters[(method, categorical_dim, latent_dim)][2] == 'Adam':
+            optimizer = optim.Adam(model.parameters(), lr=hyperparameters[(method, categorical_dim, latent_dim)][0])
+        else:
+            optimizer = optim.RAdam(model.parameters(), lr=hyperparameters[(method, categorical_dim, latent_dim)][0])
         model.train()
         for epoch in range(1, args.epochs + 1):
+            if epoch == 49:
+                model.method = 'reinmax'
             print(epoch)
             train_metrics = train(model, optimizer, epoch, train_loader, test_loader)
             print(train_metrics)
-            if model.method == 'reinmax_test':
-                logging_dict = {
-                    "train_loss": train_metrics["train_loss"],
-                    "test_loss": train_metrics["test_loss"],
-                    "variance": train_metrics["variance"],
-                    'Relative Bias w.r.t. exact grad': train_metrics['rb0'],
-                    'Relative Bias approx grad': train_metrics['rb1'],
-                    'Relative Std w.r.t. approx grad': train_metrics['bstd'],
-                    'cos sim': train_metrics['cos'],
-                    'grad_norm': train_metrics['norm'],
-                    'reinmax_t1_std': train_metrics['reinmax_t1_std'],
-                    'reinmax_t2_std': train_metrics['reinmax_t2_std']
-                }
-            else:
-                logging_dict = {
-                    "train_loss": train_metrics["train_loss"],
-                    "test_loss": train_metrics["test_loss"],
-                    "variance": train_metrics["variance"],
-                    'Relative Bias w.r.t. exact grad': train_metrics['rb0'],
-                    'Relative Bias approx grad': train_metrics['rb1'],
-                    'Relative Std w.r.t. approx grad': train_metrics['bstd'],
-                    'cos sim': train_metrics['cos'],
-                    'grad_norm': train_metrics['norm']
-                }
-            wandb.log(logging_dict, step = epoch)
+
+            wandb.log(train_metrics, step = epoch)
+            if epoch+1 in [50, 160]:
+                torch.save(model.state_dict(), f'/Users/danielwang/PycharmProjects/ReinMax_ASC/model_checkpoints/vae_{model.method}_{latent_dim}x{categorical_dim}_epoch_{epoch+1}.pth')
 
     wandb.finish()

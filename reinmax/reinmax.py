@@ -58,7 +58,8 @@ class ReinMax_Auto_test(torch.autograd.Function):
         one_hot_fixed[:, 4] = 1.0
         one_hot_argmax = argmax_onehot(logits)
         one_hot_logits = F.softmax(logits/tau, dim=-1)
-        D = one_hot_sample
+        D = one_hot_argmax
+        #print('test')
         # compute modified second term
         shifted_y_soft = .5 * ((logits/tau).softmax(dim=-1) + D)
         grad_at_input_1 = (2 * grad_at_sample) * shifted_y_soft

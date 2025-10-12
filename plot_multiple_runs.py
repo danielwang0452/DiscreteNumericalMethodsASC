@@ -44,7 +44,7 @@ def run(task, parameter_vals):
     wandb.log({
         "sweep_results": table,
         "train_loss_vs_beta": wandb.plot.line(
-            table, "beta", "train_loss", title="Train Loss vs Alpha"
+            table, "beta", "train_loss", title="Train Loss vs Alpha new"
         )
     })
 

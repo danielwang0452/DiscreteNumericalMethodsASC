@@ -4,6 +4,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 from .categorical_beta import categorical_repara, categorical_repara_jacobian
+import torch.distributions as dists
 
 import math
 
@@ -87,6 +88,10 @@ class VAE(nn.Module):
 
     def compute_code_jacobian(self, data, with_log_p=False):
         theta = self.encoder(data)
+        def theta_gradient_save(gradient):
+            self.theta_gradient = gradient
+            return gradient
+        theta.register_hook(theta_gradient_save)
         z, qy = categorical_repara_jacobian(theta, self.temperature, self.method, self.alpha, self)
         qy = qy.view(data.size(0), self.latent_dim, self.categorical_dim)
         z = z.view(data.size(0), self.latent_dim, self.categorical_dim)
@@ -97,7 +102,7 @@ class VAE(nn.Module):
             return z, qy
     def compute_code_regular(self, data, with_log_p=False):
         theta = self.encoder(data)
-        z, qy = categorical_repara(theta, self.temperature, self.method, self.alpha)
+        z, qy = categorical_repara(theta, self.temperature, self.method, self.alpha, model_ref=self)
         qy = qy.view(data.size(0), self.latent_dim, self.categorical_dim)
         z = z.view(data.size(0), self.latent_dim, self.categorical_dim)
         if with_log_p:
@@ -114,7 +119,7 @@ class VAE(nn.Module):
             #print(self.theta_gradient)
             return gradient 
         theta.register_hook(theta_gradient_save)
-        z, qy = categorical_repara_jacobian(theta, self.temperature, self.method, self.alpha, self)
+        z, qy = categorical_repara(theta, self.temperature, self.method, self.alpha, self)
         qy = qy.view(data.size(0), self.latent_dim, self.categorical_dim)
         z = z.view(data.size(0), self.latent_dim, self.categorical_dim)
         if with_log_p:
@@ -247,8 +252,8 @@ class VAE(nn.Module):
     def analyze_gradient(self, data, ct):
         exact_grad = self.exact_bce_gradient(data)
         
-        mean_grad = torch.zeros_like(exact_grad).double()
-        std_grad = torch.zeros_like(exact_grad).double()
+        mean_grad = torch.zeros_like(exact_grad).to(torch.float32)
+        std_grad = torch.zeros_like(exact_grad).to(torch.float32)
         if self.method in ['reinmax_test', 'reinmax_v2', 'reinmax_v3']:
             mean_t1_grad = torch.zeros_like(mean_grad.view(-1, exact_grad.size()[-1])).double()
             mean_t2_grad = torch.zeros_like(mean_grad.view(-1, exact_grad.size()[-1])).double()
@@ -257,11 +262,12 @@ class VAE(nn.Module):
 
         for i in range(ct):
             if self.method == 'exact':
-                grad = torch.randn_like(exact_grad)
+                grad = exact_grad
             else:
                 grad = self.approx_bce_gradient(data)
             mean_grad += grad 
             std_grad += grad ** 2
+            '''
             if self.method in ['reinmax_test', 'reinmax_v2', 'reinmax_v3']:
                 t1_grad = self.reinmax_term1#.reshape((100, 4 ,8))
                 t2_grad = self.reinmax_term2#.reshape((100, 4 ,8))
@@ -269,12 +275,13 @@ class VAE(nn.Module):
                 mean_t2_grad += t2_grad
                 std_t1_grad += t1_grad ** 2
                 std_t2_grad += t2_grad ** 2
+            '''
 
         mean_grad = mean_grad / ct 
         std_grad = (std_grad / ct - mean_grad ** 2).abs() ** 0.5
         diff = (exact_grad - mean_grad).norm()  # this norm is taken over the batch dimension?
 
-        if self.method in ['reinmax_test', 'reinmax_v2', 'reinmax_v3']:
+        if self.method in ['reinmax_test']:
             mean_t1_grad = mean_t1_grad / ct
             std_t1_grad = (std_t1_grad / ct - mean_t1_grad ** 2).abs() ** 0.5
             mean_t2_grad = mean_t2_grad / ct
@@ -299,3 +306,80 @@ class VAE(nn.Module):
             (exact_grad * mean_grad).sum() / (exact_grad.norm() * mean_grad.norm()),
             mean_grad.norm(dim=(1, 2)).mean()
         )
+
+       # return torch.tensor(1),torch.tensor(1), torch.tensor(1), torch.tensor(1), torch.tensor(1)
+
+    def get_sample_variance(self, data, ct):
+        mean_grad = None
+        for i in range(ct):
+            grad = self.approx_bce_gradient(data)
+            if mean_grad == None:
+                mean_grad = torch.zeros_like(grad).to(torch.float32)
+                std_grad = torch.zeros_like(grad).to(torch.float32)
+            mean_grad += grad
+            std_grad += grad ** 2
+
+        mean_grad = mean_grad / ct
+        std_grad = (std_grad / ct - mean_grad ** 2).abs() ** 0.5
+        return (
+            # (diff.reshape((100, 4 ,8)).norm(dim=(1, 2))/mean_grad.reshape((100, 4 ,8)).norm(dim=(1, 2))).mean(),
+            (std_grad.reshape((100, self.latent_dim, self.categorical_dim)).norm(dim=(1, 2)) / mean_grad.reshape((100, self.latent_dim, self.categorical_dim)).norm(
+                dim=(1, 2))).mean(),  # std_grad.norm(dim=(1, 2)).mean(),#std_grad.norm() / mean_grad.norm(),
+            mean_grad.norm(dim=(1, 2)).mean()
+        )
+
+    def compute_marginal_log_likelihood(self, data, k=10):
+        """
+        Importance-weighted estimate of the marginal log-likelihood:
+            log p(x) ≈ log(1/K * sum_k [ p(x|z_k)p(z_k)/q(z_k|x) ])
+
+        Args:
+            data: [batch, 784]
+            k: number of samples per datapoint (default: 1)
+        Returns:
+            log_marginal_likelihood: scalar tensor (mean across batch)
+            log_w: [batch, k] tensor of log-weights
+        """
+        batch_size = data.size(0)
+        device = data.device
+
+        # Expand input for K samples
+        data_expanded = data.unsqueeze(1).expand(-1, k, -1).reshape(-1, data.size(-1))  # [batch*k, 784]
+
+        # Sample z ~ q(z|x)
+        z_list = []
+        log_q_list = []
+        qy_list = []
+
+        for _ in range(k):
+            z, qy = self.compute_code(data, with_log_p=False)
+            z_list.append(z)
+            qy_list.append(qy)
+            # log q(z|x) = sum_i sum_c z_ic * log qy_ic
+            log_q = (z * torch.log(qy + 1e-10)).sum(dim=(1, 2))
+            log_q_list.append(log_q)
+
+        z_samples = torch.stack(z_list, dim=1)  # [batch, k, latent_dim, categorical_dim]
+        log_q_z_given_x = torch.stack(log_q_list, dim=1)  # [batch, k]
+
+        # Flatten z for decoding
+        z_flat = z_samples.view(batch_size * k, -1)  # [batch*k, latent_dim*categorical_dim]
+
+        # Compute reconstruction log-likelihood log p(x|z)
+        # note that we have non-binarised MNIST
+        x_recon = self.decoder.decode(z_flat)
+        x_recon = torch.clamp(x_recon, 1e-8, 1 - 1e-8)
+        log_p_x_given_z = data_expanded * torch.log(x_recon) + (1 - data_expanded) * torch.log(1 - x_recon)
+        log_p_x_given_z = log_p_x_given_z.sum(dim=1).view(batch_size, k)
+        # Prior: uniform categorical, so log p(z) = -log(C) * L
+        log_p_z = -math.log(self.categorical_dim) * self.latent_dim
+        log_p_z = torch.full_like(log_p_x_given_z, log_p_z)
+
+        # Compute unnormalized log-weights
+
+        log_w = log_p_x_given_z + log_p_z - log_q_z_given_x  # [batch, k]
+
+        # IWAE marginal log-likelihood estimate (mean over batch)
+        log_marginal_likelihood = (torch.logsumexp(log_w, dim=1) - torch.log(torch.tensor(k))).mean()
+
+        return log_marginal_likelihood, log_w
