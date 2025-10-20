@@ -97,14 +97,10 @@ if __name__ == '__main__':
     hyperparameters = {  # lr, temp according to table 8 for VAE with 8x4 latents
         ('gaussian', 64, 64): [0.0005, 0.5, 'RAdam'],
         ('gumbel', 64, 64): [0.0005, 0.5, 'RAdam'],
-        ('reinmax', 64, 64): [0.0005, 1.3, 'RAdam'],
-
-        ('gaussian', 32, 32): [0.0005, 0.5, 'RAdam'],
-        ('gumbel', 32, 32): [0.0005, 0.5, 'RAdam'],
         ('rao_gumbel', 32, 32): [0.0005, 1.0, 'RAdam'],
         ('gst-1.0', 32, 32): [0.0005, 0.5, 'RAdam'],
         ('st', 32, 32): [0.007, 1.4, 'RAdam'],
-        ('reinmax', 32, 32): [0.0005, 1.3, 'RAdam'],
+        ('reinmax', 64, 64): [0.0005, 1.3, 'RAdam'],
         ('reinmax_v2', 32, 32): [0.0005, 1.0, 'RAdam'],
         ('reinmax_v3', 32, 32): [0.0005, 1.0, 'RAdam'],
 
@@ -163,13 +159,9 @@ if __name__ == '__main__':
         ('reinmax_v3', 8, 4): [0.0005, 1.0, 'Adam'],
     }
     categorical_dim, latent_dim = 10, 30
-    methods = ['gaussian']#, 'gumbel', 'reinmax']#gst-1.0', 'rao_gumbel']
-    #methods = ['reinmax_v3' for _ in range(0)]
-    #temps = torch.ones(len(methods))
-    #temps = torch.linspace(0.05, 2.0, len(methods))
+    methods = ['gaussian', 'gumbel', 'reinmax']#gst-1.0', 'rao_gumbel']
 
     for m, method in enumerate(methods):
-
         model = VAE(
             latent_dim=latent_dim,
             categorical_dim=categorical_dim,
@@ -177,12 +169,11 @@ if __name__ == '__main__':
             method=method,
             activation=args.activation
         )
-        model.compute_code = model.compute_code_regular
+        model.compute_code = model.compute_code_jacobian
         if hyperparameters[(method, categorical_dim, latent_dim)][2] == 'Adam':
             optimizer = optim.Adam(model.parameters(), lr=hyperparameters[(method, categorical_dim, latent_dim)][0])
         else:
             optimizer = optim.RAdam(model.parameters(), lr=hyperparameters[(method, categorical_dim, latent_dim)][0])
-        '''
         # load pretrained VAE
         checkpoint = torch.load(f'/Users/danielwang/PycharmProjects/ReinMax_ASC/model_checkpoints/vae_{method}_{latent_dim}x{categorical_dim}_epoch_160.pth', map_location=device)
         model.load_state_dict(checkpoint)
@@ -191,7 +182,7 @@ if __name__ == '__main__':
         loss = bce + kld
         loss.backward()
         model.zero_grad()
-        '''
+        jacobian_dict[f'{method}_{str(model.temperature)}'] = model.jacobian
     # plot jacobians
     def visualise_jacobians_and_eigenvalues(jacobian_dict, num_samples=5, save_path=f"saved_figs/jacobian_and_eigenvalues2.png"):
         """
@@ -245,13 +236,7 @@ if __name__ == '__main__':
 
     # log image
     def log_image():
-        data_list = list(train_loader)
-        index = random.randint(0, len(data_list))
-        print(index)
-        (data, _) = data_list[index]
-        data = data.view(data.size(0), -1)[:64].to(device)
-
-        checkpoint_methods = ['reinmax', 'gaussian', 'gumbel', 'st']#, 'rao_gumbel', 'st', 'reinmax_v3']
+        checkpoint_methods = ['reinmax', 'gaussian', 'gumbel']
         M = 64 * latent_dim
         np_y = np.zeros((M, categorical_dim), dtype=np.float32)
         np_y[range(M), np.random.choice(categorical_dim, M)] = 1
@@ -263,66 +248,72 @@ if __name__ == '__main__':
                 f'/Users/danielwang/PycharmProjects/ReinMax_ASC/model_checkpoints/vae_{checkpoint_method}_{latent_dim}x{categorical_dim}_epoch_160.pth',
                 map_location=device)
             model.load_state_dict(checkpoint)
-
             sample_img = model.decoder.decode(sample).cpu()
             save_image(sample_img.data.view(M // latent_dim, 1, 28, 28),
                        f'saved_figs/sample_{checkpoint_method}.png')
             print(f'saved_figs/sample_{checkpoint_method}.png')
-            # reconstruction image
-            batch_size = data.size(0)
-            z, qy = model.compute_code(data)
-            r_d = z.view(batch_size, -1)
-            # print(z.shape, r_d.shape) torch.Size([100, 128, 10]) torch.Size([100, 1280])
-            reconstructed_img = model.decoder.decode(r_d).cpu()
-            save_image(reconstructed_img.data.view(M // latent_dim, 1, 28, 28),
-                       f'saved_figs/reconstruction_{checkpoint_method}.png')
-            print(f'saved_figs/reconstruction_{checkpoint_method}.png')
-            # bce
-            #bce = torch.nn.functional.binary_cross_entropy(
-            #self.decode(logits),
-            #target,
-            #reduction='none',)
-        # original image
-        save_image(data.data.view(M // latent_dim, 1, 28, 28),
-                   f'saved_figs/original.png')
-    def iwae():
-        k=50
-        methods = ['gaussian', 'gumbel', 'reinmax']
-        metrics = {}
-        for m, method in enumerate(methods):
+    #visualise_jacobians_and_eigenvalues(jacobian_dict)
+    log_image()
+
+    def log_heatmap(train_loader, save_path=f"saved_figs/heatmaps.png"):
+        checkpoint_methods = ['reinmax', 'gaussian', 'gumbel', 'rao_gumbel', 'reinmax_v3']
+        M = 64 * latent_dim
+        np_y = np.zeros((M, categorical_dim), dtype=np.float32)
+        np_y[range(M), np.random.choice(categorical_dim, M)] = 1
+        np_y = np.reshape(np_y, [M // latent_dim, latent_dim, categorical_dim])
+        sample = torch.from_numpy(np_y).view(M // latent_dim, latent_dim * categorical_dim)
+        heatmaps = []
+        frob_norms = []
+        for checkpoint_method in checkpoint_methods:
+            heatmap = None
+            print(checkpoint_method)
             checkpoint = torch.load(
-                f'/Users/danielwang/PycharmProjects/ReinMax_ASC/model_checkpoints/vae_{method}_{latent_dim}x{categorical_dim}_epoch_160.pth',
+                f'/Users/danielwang/PycharmProjects/ReinMax_ASC/model_checkpoints/vae_{checkpoint_method}_{latent_dim}x{categorical_dim}_epoch_160.pth',
                 map_location=device)
             model.load_state_dict(checkpoint)
-            model.method = method
-            train_IWAE_likelihood, test_IWAE_likelihood, test_VAE_likelihood, train_VAE_likelihood = 0, 0, 0, 0
-            model.eval()
-            for batch_idx, (train_data, _) in enumerate(train_loader):
-                # print(batch_idx)
-                train_data = train_data.view(train_data.size(0), -1).to(device)
-                bce, kld, _, qy = model(train_data)
-                #print(f'kld {kld}')
-                VAE_likelihood = bce + kld
-                #print(VAE_likelihood)
-                IWAE_likelihood, log_w = model.compute_marginal_log_likelihood(train_data, k)
-                print(method, VAE_likelihood.item(), -IWAE_likelihood.item())
-                train_IWAE_likelihood += -IWAE_likelihood.item() * len(train_data)
-                train_VAE_likelihood += VAE_likelihood.item() * len(train_data)
-                #break
-            metrics[f'{method}_IWAE_train'] = round(train_IWAE_likelihood / len(train_loader.dataset), 2)
-            metrics[f'{method}_VAE_train'] = round(train_VAE_likelihood / len(train_loader.dataset), 2)
-            for batch_idx, (test_data, _) in enumerate(test_loader):
-                # print(batch_idx)
-                test_data = test_data.view(test_data.size(0), -1).to(device)
-                bce, kld, _, qy = model(test_data)
-                VAE_likelihood = bce + kld
-                IWAE_likelihood, log_w = model.compute_marginal_log_likelihood(test_data, k)
-                test_VAE_likelihood += VAE_likelihood.item() * len(test_data)
-                test_IWAE_likelihood += -IWAE_likelihood.item() * len(test_data)
-                #break
-            metrics[f'{method}_IWAE_test'] = round(test_IWAE_likelihood / len(test_loader.dataset), 2)
-            metrics[f'{method}_VAE_test'] = round(test_VAE_likelihood / len(test_loader.dataset), 2)
-        #print(metrics)
+            for batch_idx, (data, _) in enumerate(train_loader):
+                data = data.view(data.size(0), -1).to(device)
+                # IWAE_likelihood, log_w = model.compute_marginal_log_likelihood(data)
+                if args.cuda:
+                    data = data.cuda()
+
+                optimizer.zero_grad()
+                theta = model.encoder(data)
+                #bce, kld, _, qy = model(data)
+
+                pi = F.softmax(theta, dim=-1)
+                if heatmap == None:
+                    heatmap = pi
+                else:
+                    heatmap = torch.cat([heatmap, pi], dim=0)
+
+            #print(heatmap.shape)
+            frob_norms.append(heatmap.norm())
+            heatmaps.append(heatmap.var(dim=0).detach().numpy())
+        # plot heatmaps
+        n = len(heatmaps)
+
+        # Determine grid size: try square-ish layout
+        rows = int(n ** 0.5)
+        cols = (n + rows - 1) // rows  # ceiling division
+
+        fig, axes = plt.subplots(rows, cols, figsize=(3 * cols, 3 * rows))
+        axes = axes.flatten()  # flatten in case of 2D axes array
+
+        for i, ax in enumerate(axes):
+            if i < n:
+                im = ax.imshow(heatmaps[i], cmap='viridis')  # or any colormap
+                ax.set_title(f'{checkpoint_methods[i]} || || =  {int(frob_norms[i])}')
+                ax.axis('off')  # optional: hide axes
+                fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)  # optional colorbar
+            else:
+                ax.axis('off')  # hide extra axes
+
+        plt.tight_layout()
+        plt.savefig(save_path, dpi=200)
+        plt.close(fig)
+        print(f"Saved combined visualization to {save_path}")
+
     #visualise_jacobians_and_eigenvalues(jacobian_dict)
     #log_image()
-    iwae()
+    log_heatmap(train_loader)

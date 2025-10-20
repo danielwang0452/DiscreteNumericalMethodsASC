@@ -47,10 +47,13 @@ class Decoder(nn.Module):
         self.activation = activation_map[activation.lower()]()
         self.sigmoid = nn.Sigmoid()
     
-    def decode(self, logits):
+    def decode(self, logits, sigmoid=True):
         h1 = self.activation(self.fc1(logits))
         h2 = self.activation(self.fc2(h1))
-        return self.sigmoid(self.fc3(h2))
+        if sigmoid:
+            return self.sigmoid(self.fc3(h2))
+        else:
+            return self.fc3(h2)
         
     def forward(self, logits, target):
         return torch.nn.functional.binary_cross_entropy(
@@ -100,11 +103,13 @@ class VAE(nn.Module):
             return z, qy, log_y
         else:
             return z, qy
+
     def compute_code_regular(self, data, with_log_p=False):
         theta = self.encoder(data)
         z, qy = categorical_repara(theta, self.temperature, self.method, self.alpha, model_ref=self)
         qy = qy.view(data.size(0), self.latent_dim, self.categorical_dim)
         z = z.view(data.size(0), self.latent_dim, self.categorical_dim)
+        self.z = z
         if with_log_p:
             log_y = (z * theta).sum(dim=-1) - torch.logsumexp(theta, dim=-1)
             return z, qy, log_y
@@ -300,11 +305,11 @@ class VAE(nn.Module):
             # or (std_t1_grad.reshape((100, 4 ,8)).norm(dim=(1, 2)) / mean_t1_grad.reshape((100, 4 ,8)).norm(dim=(1, 2))).mean()
 
         return (
-            diff.norm() / exact_grad.norm(),
-            diff.norm() / mean_grad.norm(),#(diff.reshape((100, 4 ,8)).norm(dim=(1, 2))/mean_grad.reshape((100, 4 ,8)).norm(dim=(1, 2))).mean(),
-            (std_grad.reshape((100, 4 ,8)).norm(dim=(1, 2))/mean_grad.reshape((100, 4 ,8)).norm(dim=(1, 2))).mean(),#std_grad.norm(dim=(1, 2)).mean(),#std_grad.norm() / mean_grad.norm(),
-            (exact_grad * mean_grad).sum() / (exact_grad.norm() * mean_grad.norm()),
-            mean_grad.norm(dim=(1, 2)).mean()
+            #diff.norm() / exact_grad.norm(),
+            #diff.norm() / mean_grad.norm(),#(diff.reshape((100, 4 ,8)).norm(dim=(1, 2))/mean_grad.reshape((100, 4 ,8)).norm(dim=(1, 2))).mean(),
+            #(std_grad.reshape((100, 4 ,8)).norm(dim=(1, 2))/mean_grad.reshape((100, 4 ,8)).norm(dim=(1, 2))).mean(),#std_grad.norm(dim=(1, 2)).mean(),#std_grad.norm() / mean_grad.norm(),
+            (exact_grad * mean_grad).sum() / (exact_grad.norm() * mean_grad.norm())
+            #mean_grad.norm(dim=(1, 2)).mean()
         )
 
        # return torch.tensor(1),torch.tensor(1), torch.tensor(1), torch.tensor(1), torch.tensor(1)
@@ -328,7 +333,7 @@ class VAE(nn.Module):
             mean_grad.norm(dim=(1, 2)).mean()
         )
 
-    def compute_marginal_log_likelihood(self, data, k=10):
+    def compute_marginal_log_likelihood(self, data, k=100):
         """
         Importance-weighted estimate of the marginal log-likelihood:
             log p(x) ≈ log(1/K * sum_k [ p(x|z_k)p(z_k)/q(z_k|x) ])
@@ -357,19 +362,31 @@ class VAE(nn.Module):
             qy_list.append(qy)
             # log q(z|x) = sum_i sum_c z_ic * log qy_ic
             log_q = (z * torch.log(qy + 1e-10)).sum(dim=(1, 2))
+
+            #qy = qy.view(batch_size, -1)
+            #log_ratio = torch.log(qy + 1e-10)
+            #log_q = torch.sum(qy * log_ratio, dim=-1) + math.log(self.categorical_dim) * self.latent_dim
+            #print(log_q.mean())
+
             log_q_list.append(log_q)
+
 
         z_samples = torch.stack(z_list, dim=1)  # [batch, k, latent_dim, categorical_dim]
         log_q_z_given_x = torch.stack(log_q_list, dim=1)  # [batch, k]
-
+        # test IWAE vs ELBO for k=1
+        #qy2 = qy.view(batch_size, -1)
+        #log_ratio = torch.log(qy2 + 1e-10)
+        #KLD = torch.sum(qy2 * log_ratio, dim=-1)
+        #print(log_q_z_given_x.mean(dim=1), KLD)
         # Flatten z for decoding
         z_flat = z_samples.view(batch_size * k, -1)  # [batch*k, latent_dim*categorical_dim]
 
         # Compute reconstruction log-likelihood log p(x|z)
-        # note that we have non-binarised MNIST
-        x_recon = self.decoder.decode(z_flat)
-        x_recon = torch.clamp(x_recon, 1e-8, 1 - 1e-8)
-        log_p_x_given_z = data_expanded * torch.log(x_recon) + (1 - data_expanded) * torch.log(1 - x_recon)
+        x_recon = self.decoder.decode(z_flat)#, sigmoid=False)
+        #print(x_recon)
+        #x_recon = torch.clamp(x_recon, 1e-8, 1 - 1e-8)
+        #log_p_x_given_z2 = data_expanded * torch.log(x_recon) + (1 - data_expanded) * torch.log(1 - x_recon)
+        log_p_x_given_z = -F.binary_cross_entropy(x_recon, data_expanded, reduction='none')
         log_p_x_given_z = log_p_x_given_z.sum(dim=1).view(batch_size, k)
         # Prior: uniform categorical, so log p(z) = -log(C) * L
         log_p_z = -math.log(self.categorical_dim) * self.latent_dim
@@ -378,7 +395,7 @@ class VAE(nn.Module):
         # Compute unnormalized log-weights
 
         log_w = log_p_x_given_z + log_p_z - log_q_z_given_x  # [batch, k]
-
+        #print(2,(log_p_z - log_q_z_given_x).mean())
         # IWAE marginal log-likelihood estimate (mean over batch)
         log_marginal_likelihood = (torch.logsumexp(log_w, dim=1) - torch.log(torch.tensor(k))).mean()
 

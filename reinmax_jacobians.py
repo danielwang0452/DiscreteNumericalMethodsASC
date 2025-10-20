@@ -14,7 +14,54 @@ torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 os.environ['PYTHONHASHSEED'] = str(manualSeed)
 
+def empirical_y_soft(theta, k=1000, tau=0.001):
+    # theta: B, L, C
+    #theta = torch.ones_like(theta)
+    B, L, C = theta.shape
+    theta_Z = theta.unsqueeze(0).repeat((k, 1, 1, 1))
+    theta_Z =  (theta_Z + torch.randn_like(theta_Z))
+    #z_samples = (theta_Z/tau).softmax(dim=-1)
+    z_samples = F.one_hot(theta_Z.argmax(dim=-1), num_classes=C)  # (k, B, L, C)
+    prob_empirical = z_samples.float().mean(dim=0)
+    #print(prob_empirical.shape)
+    #pi = theta.softmax(dim=-1)
+    #print(pi)
+    # --- 4. Plot side by side ---
+    '''
+    idx = 0
+    pi = theta.softmax(dim=-1)
+    softmax_batch = pi[idx].detach().cpu()  # (L, C)
+    gaussian_batch = prob_empirical[idx].detach().cpu()  # (L, C)
 
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+    im0 = axes[0].imshow(softmax_batch, cmap='viridis', aspect='auto')
+    axes[0].set_title("Softmax(theta)")
+    axes[0].set_xlabel("Category")
+    axes[0].set_ylabel("Latent variable")
+    fig.colorbar(im0, ax=axes[0])
+
+    im1 = axes[1].imshow(gaussian_batch, cmap='viridis', aspect='auto')
+    axes[1].set_title("Gaussian-softmax (empirical)")
+    axes[1].set_xlabel("Category")
+    axes[1].set_ylabel("Latent variable")
+    fig.colorbar(im1, ax=axes[1])
+    plt.tight_layout()
+    plt.show()
+    softmax_vals = pi.detach().cpu().flatten()
+    gaussian_vals = prob_empirical.detach().cpu().flatten()
+    
+    # --- 4. Plot histogram ---
+    plt.figure(figsize=(8, 5))
+    plt.hist(softmax_vals, bins=50, alpha=0.6, label='Softmax(theta)')
+    plt.hist(gaussian_vals, bins=50, alpha=0.6, label='Gaussian-softmax (empirical)')
+    plt.xlabel('Probability value')
+    plt.ylabel('Count')
+    plt.title('Distribution of softmax values across batches and latents')
+    plt.legend()
+    plt.show()
+    '''
+    return prob_empirical
 
 class ReinMaxCore_v2_jacobian(torch.autograd.Function):
     @staticmethod
@@ -45,6 +92,14 @@ class ReinMaxCore_v2_jacobian(torch.autograd.Function):
             y_soft = F.softmax(logits, dim=-1).view(-1, logits.size()[-1])
             if jacobian_method == 'gaussian':
                 theta = gaussian_softmax(logits, tau=tau)
+                y_soft = empirical_y_soft(theta).view(-1, logits.size()[-1])
+                #print(y_soft.shape)
+                #one_hot_sample = F.gumbel_softmax(logits, tau=tau, hard=True).view(-1, logits.size()[-1])
+                #print(theta.shape, one_hot_sample.shape)
+                #ctx.save_for_backward(one_hot_sample, theta, y_soft, tau)
+                #ctx.model_ref = model_ref
+                #ctx.jacobian_method = jacobian_method
+                #return one_hot_sample, y_soft
             elif jacobian_method == 'gumbel':
                 theta = F.gumbel_softmax(logits, tau=tau)
             #plot_softmaxes(logits)
@@ -185,7 +240,7 @@ def gaussian_softmax(
         ret = y_soft
     return ret
 
-def plot_softmaxes(logits, tau=0.01, dim=-1, K=1000):
+def plot_softmaxes(logits, tau=0.01, dim=-1, K=1):
     y_soft_gaussian = torch.zeros_like(logits)
     y_soft_gumbel = torch.zeros_like(logits)
     for k in range(K):

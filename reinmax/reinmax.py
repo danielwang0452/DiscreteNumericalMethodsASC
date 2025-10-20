@@ -142,12 +142,11 @@ class ReinMax_Auto(torch.autograd.Function):
         grad_at_p: torch.Tensor,
     ):
         one_hot_sample, logits, y_soft, tau, alpha = ctx.saved_tensors
-
         pi_alpha = (1-1/(2*alpha))*(logits / tau).softmax(dim=-1) +1/(2*alpha)*one_hot_sample
         shifted_y_soft = .5 * ((logits / tau).softmax(dim=-1) + one_hot_sample)
         grad_at_input_1 = (2 * grad_at_sample) * shifted_y_soft
         grad_at_input_1 = grad_at_input_1 - shifted_y_soft * ((2*grad_at_sample)*pi_alpha).sum(dim=-1, keepdim=True)
-        
+
         grad_at_input_0 = (-1/(2*alpha) * grad_at_sample + grad_at_p) * y_soft
         grad_at_input_0 = grad_at_input_0 - y_soft * grad_at_input_0.sum(dim=-1, keepdim=True)
         

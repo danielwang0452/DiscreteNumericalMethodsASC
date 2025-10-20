@@ -33,7 +33,15 @@ repeat_method_mapping = {
     'rao': ('rao_gumbel', rao_gumbel, int),
 }
 def categorical_repara_jacobian(logits, temp, method='gumbel', alpha=1.0, model_ref=None):
-    sample, qy = reinmax_jacobian(logits, model_ref, tau=temp, jacobian_method=method)
+    if method == 'reinmax_v2':
+        sample, qy = reinmax_v2(logits, model_ref, tau=temp, jacobian_method='gumbel_D')
+        return sample, qy
+
+    elif method == 'reinmax_v3':
+        sample, qy = reinmax_v2(logits, model_ref, tau=temp, jacobian_method='gumbel_ST')
+        return sample, qy
+    else:
+        sample, qy = reinmax_jacobian(logits, model_ref, tau=temp, jacobian_method=method)
     return sample, qy
 
 def categorical_repara(logits, temp, method='gumbel', alpha=1.0, model_ref=None):

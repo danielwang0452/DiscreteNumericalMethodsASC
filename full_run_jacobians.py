@@ -13,7 +13,7 @@ from mnist_vae.model.vae import VAE
 import wandb
 import random
 
-device = 'mps'
+device = 'cpu'
 
 def train(model, optimizer, epoch, train_loader, test_loader):
     train_loss, train_bce, train_kld, variance, reinmax_t1_var, reinmax_t2_var, train_IWAE_likelihood = 0, 0, 0, 0, 0, 0, 0
@@ -44,6 +44,7 @@ def train(model, optimizer, epoch, train_loader, test_loader):
     metrics['train_bce'] = train_bce / len(train_loader.dataset)
     metrics['train_kld'] = train_kld / len(train_loader.dataset)
     # test
+
     model.eval()
     test_loss, test_bce, test_kld, test_IWAE_likelihood = 0, 0, 0, 0
     temp = args.temperature
@@ -67,10 +68,13 @@ def train(model, optimizer, epoch, train_loader, test_loader):
     metrics['test_loss'] = test_loss / len(test_loader.dataset)
     metrics['test_bce'] = test_bce / len(test_loader.dataset)
     metrics['test_kld'] = test_kld / len(test_loader.dataset)
-    # get sample variance
+    
+    #get sample variance
     bstd, norm = model.get_sample_variance(data[:args.gradient_estimate_sample, :], 1024)
     metrics['Relative Std w.r.t. approx grad'] = bstd
     metrics['grad_norm'] = norm
+    model.zero_grad()
+
     return metrics
 
 if __name__ == '__main__':
@@ -108,12 +112,12 @@ if __name__ == '__main__':
     parser.add_argument('-s', '--gradient-estimate-sample', type=int, default=100,
                         help="number of samples used to estimate gradient bias (default 0: not estimate)")
     hyperparameters = {  # lr, temp according to table 8 for VAE with 8x4 latents
-        ('gaussian', 64, 64): [0.0005, 0.5, 'RAdam'],
+        ('gaussian', 32, 32): [0.0005, 0.5, 'RAdam'],
         ('gumbel', 64, 64): [0.0005, 0.5, 'RAdam'],
         ('rao_gumbel', 32, 32): [0.0005, 1.0, 'RAdam'],
         ('gst-1.0', 32, 32): [0.0005, 0.5, 'RAdam'],
         ('st', 32, 32): [0.007, 1.4, 'RAdam'],
-        ('reinmax', 64, 64): [0.0005, 1.3, 'RAdam'],
+        ('reinmax', 32, 32): [0.0005, 1.3, 'RAdam'],
         ('reinmax_v2', 32, 32): [0.0005, 1.0, 'RAdam'],
         ('reinmax_v3', 32, 32): [0.0005, 1.0, 'RAdam'],
 
@@ -174,13 +178,14 @@ if __name__ == '__main__':
     }
     categorical_dim, latent_dim = 64, 8
     print(categorical_dim, latent_dim)
-    methods = ['reinmax_v2']#, 'gumbel', 'st', 'rao_gumbel', 'gst-1.0', 'reinmax'], reinmax_test
+    methods = ['rao_gumbel']#, 'gumbel', 'st', 'rao_gumbel', 'gst-1.0', 'reinmax'], reinmax_test
     args = parser.parse_args()
     args.cuda = not args.no_cuda and torch.cuda.is_available()
 
     wandb.init(
         project="ReinMax_ASC",
         name=f"vae_{methods[0]}_{categorical_dim}x{latent_dim}",
+        #group=f'{categorical_dim}x{latent_dim}',
         config={
             "method": methods[0]
         }
@@ -215,7 +220,10 @@ if __name__ == '__main__':
             method=method,
             activation=args.activation
         ).to(device)
-        model.compute_code = model.compute_code_jacobian
+        model.compute_code = model.compute_code_track
+        #checkpoint = torch.load(f'/Users/danielwang/PycharmProjects/ReinMax_ASC/model_checkpoints/vae_{method}_{latent_dim}x{categorical_dim}_epoch_50.pth',
+        #                        map_location=device)
+        #model.load_state_dict(checkpoint)
         if hyperparameters[(method, categorical_dim, latent_dim)][2] == 'Adam':
             optimizer = optim.Adam(model.parameters(), lr=hyperparameters[(method, categorical_dim, latent_dim)][0])
         else:
