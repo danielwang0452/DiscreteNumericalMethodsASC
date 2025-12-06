@@ -177,9 +177,9 @@ if __name__ == '__main__':
         ('reinmax_v2', 8, 4): [0.0005, 1.0, 'Adam'],
         ('reinmax_v3', 8, 4): [0.0005, 1.0, 'Adam'],
     }
-    categorical_dim, latent_dim = 4, 24
+    categorical_dim, latent_dim = 16, 12
     print(categorical_dim, latent_dim)
-    methods = ['rao_gumbel']  # , 'gumbel', 'st', 'rao_gumbel', 'gst-1.0', 'reinmax'], reinmax_test
+    methods = ['reinmax']  # , 'gumbel', 'st', 'rao_gumbel', 'gst-1.0', 'reinmax'], reinmax_test
     args = parser.parse_args()
     args.cuda = not args.no_cuda and torch.cuda.is_available()
 

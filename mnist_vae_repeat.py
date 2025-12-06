@@ -131,23 +131,9 @@ def train(model, optimizer, epoch, beta):
         train_bce += bce.item() * len(data)
         train_kld += kld.item() * len(data)
 
-        if batch_idx % args.log_interval == 0:
-            print(f'epoch {epoch} loss {loss.item()}')
-            '''
-            print(
-                'Train Epoch: {} [{}/{} ({:.0f}%)] \t Loss: {:.2f} \t BCE: {:.2f} \t KLD: {:.2f} \t Max of Softmax: {:.2f} +/- {:.2f} in [{:.2f} -- {:.2f}]'.format(
-                    epoch, batch_idx * len(data), len(train_loader.dataset),
-                           100. * batch_idx / len(train_loader),
-                    loss.item(),
-                    bce.item(),
-                    kld.item(),
-                    qy.view(-1, args.categorical_dim).max(dim=-1)[0].mean(),
-                    qy.view(-1, args.categorical_dim).max(dim=-1)[0].std(),
-                    qy.view(-1, args.categorical_dim).max(dim=-1)[0].max(),
-                    qy.view(-1, args.categorical_dim).max(dim=-1)[0].min(),
-                )
-            )
-            '''
+        #if batch_idx % args.log_interval == 0:
+            #print(f'epoch {epoch} loss {loss.item()}')
+
 
     #print('====> Epoch: {} Average loss: {:.6f} \t BCE: {:.6f} KLD: {:.6f}'.format(
     #    epoch,

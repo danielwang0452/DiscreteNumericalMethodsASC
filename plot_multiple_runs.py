@@ -29,13 +29,14 @@ def run(task, parameter_vals):
     n_runs = len(parameter_vals)
     results = []
     x_vals = parameter_vals
-
+    losses = []
     for run in range(n_runs):
         print(run)
         parameter = x_vals[run]
         metrics = get_metrics(task, run, parameter)
         print(metrics['train_loss'])
         results.append((x_vals[run], metrics['train_loss']))
+        losses.append(metrics['train_loss'])
     # log in W&B
     table = wandb.Table(columns=["beta", "train_loss"])
     for x_val, y_val in results:
@@ -49,10 +50,14 @@ def run(task, parameter_vals):
     })
 
     wandb.finish()
+    print(losses)
 
 
 if __name__ == '__main__':
     task = 'mnist_vae'
-    n_runs = 50
-    parameter_vals = np.linspace(-0.5, 1.5, n_runs).tolist()
+    #parameter_vals = np.linspace(-0.5, 1.5, n_runs).tolist()
+
+    parameter_vals  = np.arange(-0.5, 1.51, 0.04)#.tolist()
+    n_runs = len(parameter_vals)
+    print(parameter_vals)
     run(task, parameter_vals)

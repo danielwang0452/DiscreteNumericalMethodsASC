@@ -144,8 +144,8 @@ if __name__ == '__main__':
 
     #data = data.repeat((num_samples, 1))
     metrics = {}
-    categorical_dim, latent_dim =64, 64
-    methods = ['gaussian', 'reinmax']#, 'gumbel', 'reinmax', 'rao_gumbel', 'reinmax_v2', 'reinmax_v3']#, 'rao_gumbel']
+    categorical_dim, latent_dim = 8, 4
+    methods = ['rao_gumbel']#, 'reinmax_v2', 'reinmax_v3']#, 'rao_gumbel']
     k = 100
     for m, method in enumerate(methods):
         print(method)
@@ -153,13 +153,13 @@ if __name__ == '__main__':
             latent_dim=latent_dim,
             categorical_dim=categorical_dim,
             temperature=hyperparameters[(method, categorical_dim, latent_dim)][1],
-            method='st',
+            method=method,
             activation=args.activation
         )
-        model.compute_code = model.compute_code_regular
+        model.compute_code = model.compute_code_track
         # load pretrained VAE
         try:
-            checkpoint = torch.load(f'/Users/danielwang/PycharmProjects/ReinMax_ASC/model_checkpoints/vae_{method}_{latent_dim}x{categorical_dim}_epoch_160.pth', map_location=device)
+            checkpoint = torch.load(f'/Users/danielwang/PycharmProjects/ReinMax_ASC/model_checkpoints/vae_reinmax_{latent_dim}x{categorical_dim}_epoch_50.pth', map_location=device)
         except:
             print(f'{method} not found')
             continue
@@ -170,34 +170,36 @@ if __name__ == '__main__':
             optimizer = optim.RAdam(model.parameters(),
                                     lr=hyperparameters[(method, categorical_dim, latent_dim)][0])
         train_IWAE_likelihood, test_IWAE_likelihood , test_VAE_likelihood, train_VAE_likelihood = 0, 0, 0, 0
-        model.eval()
-        with torch.no_grad():
-            for batch_idx, (train_data, _) in enumerate(train_loader):
-                print(method, batch_idx)
-                # print(batch_idx)
-                train_data = train_data.view(train_data.size(0), -1).to(device)
-                #bce, kld, _, qy = model(train_data)
-                #VAE_likelihood = bce + kld
-                IWAE_likelihood, log_w = model.compute_marginal_log_likelihood(train_data, k)
-                train_IWAE_likelihood += -IWAE_likelihood.item() * len(train_data)
-                #train_VAE_likelihood += VAE_likelihood.item() * len(train_data)
-            metrics[f'{method}_IWAE_train'] = round(train_IWAE_likelihood / len(train_loader.dataset), 2)
-            #metrics[f'{method}_VAE_train'] = round(train_VAE_likelihood / len(train_loader.dataset), 2)
-            for batch_idx, (test_data, _) in enumerate(test_loader):
-                # print(batch_idx)
-                test_data = test_data.view(test_data.size(0), -1).to(device)
-                #bce, kld, _, qy = model(test_data)
-                #VAE_likelihood = bce + kld
-                IWAE_likelihood, log_w = model.compute_marginal_log_likelihood(test_data, k)
-                #test_VAE_likelihood += VAE_likelihood.item() * len(test_data)
-                test_IWAE_likelihood += -IWAE_likelihood.item() * len(test_data)
-            metrics[f'{method}_IWAE_test'] = round(test_IWAE_likelihood / len(test_loader.dataset), 2)
-            #metrics[f'{method}_VAE_test'] = round(test_VAE_likelihood / len(test_loader.dataset), 2)
-            # bias and std
-            #if categorical_dim * latent_dim == 32:
-            #    cos = model.analyze_gradient(train_data[:args.gradient_estimate_sample, :], 1024)
-            #    metrics[f'{method}_cos'] = round(cos.item(), 2)
-            #bstd, norm = model.get_sample_variance(train_data[:args.gradient_estimate_sample, :], 1024)
-            #metrics[f'{method}_std'] = round(bstd.item(), 2)
-            model.zero_grad()
+
+        for batch_idx, (train_data, _) in enumerate(train_loader):
+            print(method, batch_idx)
+            # print(batch_idx)
+            train_data = train_data.view(train_data.size(0), -1).to(device)
+        '''
+            bce, kld, _, qy = model(train_data)
+            VAE_likelihood = bce + kld
+            #IWAE_likelihood, log_w = model.compute_marginal_log_likelihood(train_data, k)
+            #train_IWAE_likelihood += -IWAE_likelihood.item() * len(train_data)
+            train_VAE_likelihood += VAE_likelihood.item() * len(train_data)
+        #metrics[f'{method}_IWAE_train'] = round(train_IWAE_likelihood / len(train_loader.dataset), 2)
+        metrics[f'{method}_VAE_train'] = round(train_VAE_likelihood / len(train_loader.dataset), 2)
+        for batch_idx, (test_data, _) in enumerate(test_loader):
+            # print(batch_idx)
+            test_data = test_data.view(test_data.size(0), -1).to(device)
+            bce, kld, _, qy = model(test_data)
+            VAE_likelihood = bce + kld
+            #IWAE_likelihood, log_w = model.compute_marginal_log_likelihood(test_data, k)
+            test_VAE_likelihood += VAE_likelihood.item() * len(test_data)
+            #test_IWAE_likelihood += -IWAE_likelihood.item() * len(test_data)
+        '''
+        #metrics[f'{method}_IWAE_test'] = round(test_IWAE_likelihood / len(test_loader.dataset), 2)
+        #metrics[f'{method}_VAE_test'] = round(test_VAE_likelihood / len(test_loader.dataset), 2)
+        # bias and std
+
+        if categorical_dim * latent_dim == 32:
+            cos = model.analyze_gradient(train_data[:args.gradient_estimate_sample, :], 1024)
+            metrics[f'{method}_cos'] = round(cos.item(), 2)
+        #bstd, norm = model.get_sample_variance(train_data[:args.gradient_estimate_sample, :], 1024)
+        #metrics[f'{method}_std'] = round(bstd.item(), 2)
+        #model.zero_grad()
     print(metrics)

@@ -162,7 +162,7 @@ if __name__ == '__main__':
         ('reinmax_v2', 8, 4): [0.0005, 1.0, 'Adam'],
         ('reinmax_v3', 8, 4): [0.0005, 1.0, 'Adam'],
     }
-    categorical_dim, latent_dim = 10, 30
+    categorical_dim, latent_dim = 64, 8
     methods = ['gaussian']#, 'gumbel', 'reinmax']#gst-1.0', 'rao_gumbel']
     #methods = ['reinmax_v3' for _ in range(0)]
     #temps = torch.ones(len(methods))
@@ -251,7 +251,7 @@ if __name__ == '__main__':
         (data, _) = data_list[index]
         data = data.view(data.size(0), -1)[:64].to(device)
 
-        checkpoint_methods = ['reinmax', 'gaussian', 'gumbel', 'st']#, 'rao_gumbel', 'st', 'reinmax_v3']
+        checkpoint_methods = ['reinmax', 'reinmax_v2', 'reinmax_v3', 'rao_gumbel', 'gumbel', 'st']#, 'rao_gumbel', 'st', 'reinmax_v3']
         M = 64 * latent_dim
         np_y = np.zeros((M, categorical_dim), dtype=np.float32)
         np_y[range(M), np.random.choice(categorical_dim, M)] = 1
@@ -324,5 +324,5 @@ if __name__ == '__main__':
             metrics[f'{method}_VAE_test'] = round(test_VAE_likelihood / len(test_loader.dataset), 2)
         #print(metrics)
     #visualise_jacobians_and_eigenvalues(jacobian_dict)
-    #log_image()
-    iwae()
+    log_image()
+    #iwae()

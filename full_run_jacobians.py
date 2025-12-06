@@ -68,8 +68,11 @@ def train(model, optimizer, epoch, train_loader, test_loader):
     metrics['test_loss'] = test_loss / len(test_loader.dataset)
     metrics['test_bce'] = test_bce / len(test_loader.dataset)
     metrics['test_kld'] = test_kld / len(test_loader.dataset)
-    
+
+    #print(data.shape)
     #get sample variance
+    #print(args.gradient_estimate_sample)
+    #print(args.gradient_estimate_sample)
     bstd, norm = model.get_sample_variance(data[:args.gradient_estimate_sample, :], 1024)
     metrics['Relative Std w.r.t. approx grad'] = bstd
     metrics['grad_norm'] = norm
@@ -176,9 +179,9 @@ if __name__ == '__main__':
         ('reinmax_v2', 8, 4): [0.0005, 1.0, 'Adam'],
         ('reinmax_v3', 8, 4): [0.0005, 1.0, 'Adam'],
     }
-    categorical_dim, latent_dim = 64, 8
+    categorical_dim, latent_dim = 16, 12
     print(categorical_dim, latent_dim)
-    methods = ['rao_gumbel']#, 'gumbel', 'st', 'rao_gumbel', 'gst-1.0', 'reinmax'], reinmax_test
+    methods = ['reinmax']#, 'gumbel', 'st', 'rao_gumbel', 'gst-1.0', 'reinmax'], reinmax_test
     args = parser.parse_args()
     args.cuda = not args.no_cuda and torch.cuda.is_available()
 

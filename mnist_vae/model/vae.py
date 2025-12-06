@@ -256,7 +256,6 @@ class VAE(nn.Module):
 
     def analyze_gradient(self, data, ct):
         exact_grad = self.exact_bce_gradient(data)
-        
         mean_grad = torch.zeros_like(exact_grad).to(torch.float32)
         std_grad = torch.zeros_like(exact_grad).to(torch.float32)
         if self.method in ['reinmax_test', 'reinmax_v2', 'reinmax_v3']:
