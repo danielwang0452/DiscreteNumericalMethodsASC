@@ -10,7 +10,6 @@ from torch import nn, optim
 from torchvision import datasets, transforms
 from torchvision.utils import save_image
 from mnist_vae.model.vae import VAE
-import wandb
 import random
 
 device = 'cpu'
