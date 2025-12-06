@@ -141,7 +141,7 @@ if __name__ == '__main__':
     batch_size = 100
     epochs = 160
     categorical_dim, latent_dim = 16, 12
-    method = 'reinmax' # , 'gumbel', 'st', 'rao_gumbel', 'gst-1.0', 'reinmax'
+    method = 'reinmax' # , 'gumbel', 'st', 'rao_gumbel', 'gst-1.0','reinmax_v2', reinmax_v3'
 
     train_loader = torch.utils.data.DataLoader(
         datasets.MNIST('./data/MNIST', train=True, download=True,
