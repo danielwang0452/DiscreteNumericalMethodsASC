@@ -58,12 +58,6 @@ def train(model, optimizer, epoch, train_loader, test_loader):
         test_bce += bce.item() * len(data)
         test_kld += kld.item() * len(data)
         #test_IWAE_likelihood += -IWAE_likelihood.item() * len(data)
-        if i == 0 and args.log_images:
-            n = min(data.size(0), 8)
-            comparison = torch.cat([data[:n],
-                                    recon_batch.view(args.batch_size, 1, 28, 28)[:n]])
-            save_image(comparison.data.cpu(),
-                       'data/reconstruction_' + str(epoch) + '.png', nrow=n)
     #metrics['test_IWAE_likelihood'] = test_IWAE_likelihood / len(test_loader.dataset)
     metrics['test_loss'] = test_loss / len(test_loader.dataset)
     metrics['test_bce'] = test_bce / len(test_loader.dataset)
