@@ -80,13 +80,17 @@ if __name__ == '__main__':
     categorical_dim, latent_dim = 8, 4
     method = 'st' # , 'gumbel', 'st', 'rao_gumbel', 'gst-1.0','reinmax_v2', reinmax_v3'
 
+    mnist_path = './data/MNIST'
+
     train_loader = torch.utils.data.DataLoader(
-        datasets.MNIST('./data/MNIST', train=True, download=True,
+        datasets.MNIST(mnist_path, train=True, download=False,
                        transform=transforms.ToTensor()),
-        batch_size=batch_size, shuffle=True)#, **kwargs)
+        batch_size=batch_size, shuffle=True)
+
     test_loader = torch.utils.data.DataLoader(
-        datasets.MNIST('./data/MNIST', train=False, transform=transforms.ToTensor()),
-        batch_size=batch_size, shuffle=True)#, **kwargs)
+        datasets.MNIST(mnist_path, train=False, download=False,
+                       transform=transforms.ToTensor()),
+        batch_size=batch_size, shuffle=True)
 
     print(method)
     # set up model
