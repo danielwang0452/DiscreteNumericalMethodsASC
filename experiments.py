@@ -106,7 +106,7 @@ if __name__ == '__main__':
     if args.cuda:
         device = 'cuda'
         torch.cuda.manual_seed(args.seed)
-
+    print(f'device: {device}')
 
     manualSeed = args.seed
     random.seed(manualSeed)
