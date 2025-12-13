@@ -12,6 +12,7 @@ from torchvision.utils import save_image
 from mnist_vae.model.vae import VAE
 import wandb
 import random
+from hyperparameters import hyperparameters
 
 device = 'cpu'
 
@@ -114,74 +115,10 @@ if __name__ == '__main__':
                         help="relu, leakyrelu")
     parser.add_argument('-s', '--gradient-estimate-sample', type=int, default=100,
                         help="number of samples used to estimate gradient bias (default 0: not estimate)")
-    hyperparameters = {  # lr, temp according to table 8 for VAE with 8x4 latents
-        ('gaussian', 32, 32): [0.0005, 0.5, 'RAdam'],
-        ('gumbel', 64, 64): [0.0005, 0.5, 'RAdam'],
-        ('rao_gumbel', 32, 32): [0.0005, 1.0, 'RAdam'],
-        ('gst-1.0', 32, 32): [0.0005, 0.5, 'RAdam'],
-        ('st', 32, 32): [0.007, 1.4, 'RAdam'],
-        ('reinmax', 32, 32): [0.0005, 1.3, 'RAdam'],
-        ('reinmax_v2', 32, 32): [0.0005, 1.0, 'RAdam'],
-        ('reinmax_v3', 32, 32): [0.0005, 1.0, 'RAdam'],
 
-
-        ('gaussian', 10, 30): [0.0005, 0.5, 'RAdam'],
-        ('gumbel', 10, 30): [0.0005, 0.5, 'RAdam'],
-        ('rao_gumbel', 10, 30): [0.0005, 1.0, 'RAdam'],
-        ('gst-1.0', 10, 30): [0.0005, 0.5, 'RAdam'],
-        ('st', 10, 30): [0.007, 1.4, 'RAdam'],
-        ('reinmax', 10, 30): [0.0005, 1.3, 'RAdam'],
-        ('reinmax_v2', 10, 30): [0.0005, 1.0, 'RAdam'],
-        ('reinmax_v3', 10, 30): [0.0005, 1.0, 'RAdam'],
-
-        ('gaussian', 4, 24): [0.0005, 0.3, 'RAdam'],
-        ('gumbel', 4, 24): [0.0005, 0.3, 'RAdam'],
-        ('rao_gumbel', 4, 24): [0.0005, 0.3, 'RAdam'],
-        ('gst-1.0', 4, 24): [0.0005, 0.5, 'RAdam'],
-        ('st', 4, 24): [0.001, 1.5, 'RAdam'],
-        ('reinmax', 4, 24): [0.0005, 1.5, 'RAdam'],
-        ('reinmax_v2', 4, 24): [0.0005, 1.0, 'RAdam'],
-        ('reinmax_v3', 4, 24): [0.0005, 1.0, 'RAdam'],
-
-        ('gaussian', 8, 16): [0.0005, 0.5, 'RAdam'],
-        ('gumbel', 8, 16): [0.0005, 0.5, 'RAdam'],
-        ('rao_gumbel', 8, 16): [0.0007, 0.7, 'RAdam'],
-        ('gst-1.0', 8, 16): [0.0007, 0.5, 'RAdam'],
-        ('st', 8, 16): [0.001, 1.5, 'RAdam'],
-        ('reinmax', 8, 16): [0.0007, 1.5, 'RAdam'],
-        ('reinmax_v2', 8, 16): [0.0005, 1.0, 'RAdam'],
-        ('reinmax_v3', 8, 16): [0.0005, 1.0, 'RAdam'],
-
-        ('gaussian', 16, 12): [0.0007, 0.7, 'RAdam'],
-        ('gumbel', 16, 12): [0.0007, 0.7, 'RAdam'],
-        ('rao_gumbel', 16, 12): [0.0005, 1.0, 'Adam'],
-        ('gst-1.0', 16, 12): [0.0007, 0.5, 'RAdam'],
-        ('st', 16, 12): [0.0005, 1.5, 'Adam'],
-        ('reinmax', 16, 12): [0.0007, 1.5, 'RAdam'],
-        ('reinmax_v2', 16, 12): [0.0005, 1.0, 'RAdam'],
-        ('reinmax_v3', 16, 12): [0.0005, 1.0, 'RAdam'],
-
-        ('gaussian', 64, 8): [0.0007, 0.7, 'RAdam'],
-        ('gumbel', 64, 8): [0.0007, 0.7, 'RAdam'],
-        ('rao_gumbel', 64, 8): [0.0007, 2.0, 'Adam'],
-        ('gst-1.0', 64, 8): [0.0007, 0.7, 'RAdam'],
-        ('st', 64, 8): [0.0005, 1.5, 'Adam'],
-        ('reinmax', 64, 8): [0.0005, 1.5, 'RAdam'],
-        ('reinmax_v2', 64, 8): [0.0005, 1.0, 'RAdam'],
-        ('reinmax_v3', 64, 8): [0.0005, 1.0, 'RAdam'],
-
-        ('gaussian', 8, 4): [0.0003, 0.5, 'Adam'],
-        ('gumbel', 8, 4): [0.0003, 0.5, 'Adam'],
-        ('rao_gumbel', 8, 4): [0.0005, 0.5, 'Adam'],
-        ('gst-1.0', 8, 4): [0.0005, 0.7, 'Adam'],
-        ('st', 8, 4): [0.001, 1.3, 'Adam'],
-        ('reinmax', 8, 4): [0.0005, 1.3, 'Adam'],
-        ('reinmax_v2', 8, 4): [0.0005, 1.0, 'Adam'],
-        ('reinmax_v3', 8, 4): [0.0005, 1.0, 'Adam'],
-    }
-    categorical_dim, latent_dim = 16, 12
+    categorical_dim, latent_dim = 8, 4
     print(categorical_dim, latent_dim)
-    methods = ['reinmax']#, 'gumbel', 'st', 'rao_gumbel', 'gst-1.0', 'reinmax'], reinmax_test
+    methods = ['st_v2']#, 'gumbel', 'st', 'rao_gumbel', 'gst-1.0', 'reinmax'], reinmax_test
     args = parser.parse_args()
     args.cuda = not args.no_cuda and torch.cuda.is_available()
 

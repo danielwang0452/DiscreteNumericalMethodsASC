@@ -14,55 +14,6 @@ torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 os.environ['PYTHONHASHSEED'] = str(manualSeed)
 
-def empirical_y_soft(theta, k=1000, tau=0.001):
-    # theta: B, L, C
-    #theta = torch.ones_like(theta)
-    B, L, C = theta.shape
-    theta_Z = theta.unsqueeze(0).repeat((k, 1, 1, 1))
-    theta_Z =  (theta_Z + torch.randn_like(theta_Z))
-    #z_samples = (theta_Z/tau).softmax(dim=-1)
-    z_samples = F.one_hot(theta_Z.argmax(dim=-1), num_classes=C)  # (k, B, L, C)
-    prob_empirical = z_samples.float().mean(dim=0)
-    #print(prob_empirical.shape)
-    #pi = theta.softmax(dim=-1)
-    #print(pi)
-    # --- 4. Plot side by side ---
-    '''
-    idx = 0
-    pi = theta.softmax(dim=-1)
-    softmax_batch = pi[idx].detach().cpu()  # (L, C)
-    gaussian_batch = prob_empirical[idx].detach().cpu()  # (L, C)
-
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-
-    im0 = axes[0].imshow(softmax_batch, cmap='viridis', aspect='auto')
-    axes[0].set_title("Softmax(theta)")
-    axes[0].set_xlabel("Category")
-    axes[0].set_ylabel("Latent variable")
-    fig.colorbar(im0, ax=axes[0])
-
-    im1 = axes[1].imshow(gaussian_batch, cmap='viridis', aspect='auto')
-    axes[1].set_title("Gaussian-softmax (empirical)")
-    axes[1].set_xlabel("Category")
-    axes[1].set_ylabel("Latent variable")
-    fig.colorbar(im1, ax=axes[1])
-    plt.tight_layout()
-    plt.show()
-    softmax_vals = pi.detach().cpu().flatten()
-    gaussian_vals = prob_empirical.detach().cpu().flatten()
-    
-    # --- 4. Plot histogram ---
-    plt.figure(figsize=(8, 5))
-    plt.hist(softmax_vals, bins=50, alpha=0.6, label='Softmax(theta)')
-    plt.hist(gaussian_vals, bins=50, alpha=0.6, label='Gaussian-softmax (empirical)')
-    plt.xlabel('Probability value')
-    plt.ylabel('Count')
-    plt.title('Distribution of softmax values across batches and latents')
-    plt.legend()
-    plt.show()
-    '''
-    return prob_empirical
-
 class ReinMaxCore_v2_jacobian(torch.autograd.Function):
     @staticmethod
     def forward(
@@ -72,7 +23,7 @@ class ReinMaxCore_v2_jacobian(torch.autograd.Function):
             model_ref,
             jacobian_method
     ):
-        if jacobian_method in ['reinmax', 'st', 'rao_gumbel', 'reinmax_v2', 'reinmax_v3']:
+        if jacobian_method in ['reinmax', 'st', 'rao_gumbel', 'reinmax_v2', 'reinmax_v3', 'st_v2']:
             y_soft = logits.view(-1, logits.size()[-1]).softmax(dim=-1)
             sample = torch.multinomial(
                 y_soft,
@@ -122,7 +73,7 @@ class ReinMaxCore_v2_jacobian(torch.autograd.Function):
             grad_at_p: torch.Tensor,
     ):
         one_hot_sample, logits, y_soft, tau = ctx.saved_tensors
-
+        B, L, C = logits.shape
         if ctx.jacobian_method == 'reinmax':
             #print(one_hot_sample.shape, logits.shape)
             shifted_y_soft = .5 * ((logits.view(-1, logits.size()[-1]) / tau).softmax(dim=-1) + one_hot_sample)
@@ -142,9 +93,23 @@ class ReinMaxCore_v2_jacobian(torch.autograd.Function):
             #grad_at_input_0 = grad_at_input_0 - y_soft * grad_at_input_0.sum(dim=-1, keepdim=True)
             jacobian = softmax_jacobian(logits/tau) # BL, C, C
             upstream_grad = grad_at_sample+grad_at_p
+            #print(upstream_grad.shape)# (latent * batch size, categorical)
             grad_at_input = torch.matmul(jacobian, upstream_grad.unsqueeze(-1)).squeeze(-1)
             #print((grad2-grad_at_input).abs().max())
             #print(grad_at_input_0.shape, logits.shape, grad_at_sample.shape)
+            ctx.model_ref.jacobian = jacobian
+
+        elif ctx.jacobian_method == 'st_v2':
+            # D is BL, C
+            I = torch.eye(C).unsqueeze(0).repeat((B*L, 1, 1))
+            D = one_hot_sample.unsqueeze(1).repeat((1, C, 1)) # BL, C, C check this ?
+            f_D = ctx.model_ref.loss.unsqueeze(-1).repeat(1, L).reshape((B*L)) # (B) -> BL
+            jacobian = softmax_jacobian(logits/tau) # BL, C, C
+            upstream_grad = grad_at_sample+grad_at_p # BL, C
+            #print(f_D.shape, I.shape, upstream_grad.unsqueeze(-1).shape)
+            left_matrix = f_D.reshape((B*L, 1, 1)) + torch.bmm((I-D), upstream_grad.unsqueeze(-1))
+            #print(left_matrix.shape, jacobian.shape, upstream_grad.shape)
+            grad_at_input = torch.matmul(jacobian, left_matrix).squeeze(-1)
             ctx.model_ref.jacobian = jacobian
 
         elif ctx.jacobian_method == 'gumbel':

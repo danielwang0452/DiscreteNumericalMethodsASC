@@ -76,9 +76,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='VAE MNIST Example')
 
     batch_size = 100
-    epochs = 160
+    epochs = 2
     categorical_dim, latent_dim = 8, 4
-    method = 'st_v2' # , 'gumbel', 'st', 'rao_gumbel', 'gst-1.0','reinmax_v2', reinmax_v3'
+    method = 'st' # , 'gumbel', 'st', 'rao_gumbel', 'gst-1.0','reinmax_v2', reinmax_v3'
 
     train_loader = torch.utils.data.DataLoader(
         datasets.MNIST('./data/MNIST', train=True, download=True,

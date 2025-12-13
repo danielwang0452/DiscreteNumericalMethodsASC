@@ -143,13 +143,20 @@ class VAE(nn.Module):
         z, qy = self.compute_code(data)
         r_d = z.view(batch_size, -1)
         #print(z.shape, r_d.shape) torch.Size([100, 128, 10]) torch.Size([100, 1280])
-        BCE = self.decoder(r_d, data).sum() / batch_size
+        BCE = self.decoder(r_d, data)
+
+        BCE_reduced = BCE.sum() / batch_size
         
         qy = qy.view(batch_size, -1)
         log_ratio = torch.log(qy + 1e-10)
-        KLD = torch.sum(qy * log_ratio, dim=-1).mean() + math.log(self.categorical_dim) * self.latent_dim
-        #print(BCE)
-        return BCE, KLD, (z, r_d), qy
+        #print(qy.shape, log_ratio.shape)
+        KLD = torch.sum(qy * log_ratio, dim=-1) + math.log(self.categorical_dim) * self.latent_dim
+        KLD_reduced = torch.sum(qy * log_ratio, dim=-1).mean() + math.log(self.categorical_dim) * self.latent_dim
+        #print(BCE.shape, KLD.shape)
+        unreduced_loss = BCE.sum(dim=-1) + KLD
+        #print(unreduced_loss.mean(), BCE_reduced+KLD_reduced)
+        self.loss = unreduced_loss
+        return BCE_reduced, KLD_reduced, (z, r_d), qy
     
     def exact_bce_loss(self, data):
         def convert_to_i_base(i):
@@ -335,7 +342,7 @@ class VAE(nn.Module):
     def compute_marginal_log_likelihood(self, data, k=100):
         """
         Importance-weighted estimate of the marginal log-likelihood:
-            log p(x) ≈ log(1/K * sum_k [ p(x|z_k)p(z_k)/q(z_k|x) ])
+            log p(x) ≈ log(1/K * sum_k [p(x|z_k)p(z_k)/q(z_k|x) ])
 
         Args:
             data: [batch, 784]
