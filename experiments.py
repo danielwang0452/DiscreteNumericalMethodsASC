@@ -10,7 +10,6 @@ from torch import nn, optim
 from torchvision import datasets, transforms
 from torchvision.utils import save_image
 from mnist_vae.model.vae import VAE
-import wandb
 import random
 from hyperparameters import hyperparameters
 
@@ -112,14 +111,6 @@ if __name__ == '__main__':
         device = 'cuda'
         torch.cuda.manual_seed(args.seed)
 
-    wandb.init(
-        project="ReinMax_ASC",
-        name=f"vae_{methods[0]}_{categorical_dim}x{latent_dim}",
-        #group=f'{categorical_dim}x{latent_dim}',
-        config={
-            "method": methods[0]
-        }
-    )
 
     manualSeed = args.seed
     random.seed(manualSeed)
@@ -166,8 +157,4 @@ if __name__ == '__main__':
             train_metrics = train(model, optimizer, epoch, train_loader, test_loader)
             print(train_metrics)
 
-            wandb.log(train_metrics, step = epoch)
-            if epoch+1 in [50, 160]:
-                torch.save(model.state_dict(), f'/Users/danielwang/PycharmProjects/ReinMax_ASC/model_checkpoints/vae_{model.method}_{latent_dim}x{categorical_dim}_epoch_{epoch+1}.pth')
 
-    wandb.finish()
