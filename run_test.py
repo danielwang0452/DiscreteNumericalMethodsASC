@@ -81,6 +81,8 @@ if __name__ == '__main__':
     method = 'st' # , 'gumbel', 'st', 'rao_gumbel', 'gst-1.0','reinmax_v2', reinmax_v3'
 
     mnist_path = './data/MNIST'
+    print("MNIST folder exists:", os.path.exists(mnist_path))
+    print("Files:", os.listdir(mnist_path))
 
     train_loader = torch.utils.data.DataLoader(
         datasets.MNIST(mnist_path, train=True, download=False,
