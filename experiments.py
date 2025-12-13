@@ -98,6 +98,8 @@ if __name__ == '__main__':
                         help="latent dimension")
     parser.add_argument('--categorical-dim', type=int, default=8,#10
                         help="categorical dimension")
+    parser.add_argument('--activation', type=str, default='relu',
+                        help="relu, leakyrelu")
     parser.add_argument('-s', '--gradient-estimate-sample', type=int, default=100,
                         help="number of samples used to estimate gradient bias (default 0: not estimate)")
 
