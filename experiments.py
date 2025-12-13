@@ -47,7 +47,7 @@ def train(model, optimizer, epoch, train_loader, test_loader):
 
     model.eval()
     test_loss, test_bce, test_kld, test_IWAE_likelihood = 0, 0, 0, 0
-    temp = args.temperature
+
     for i, (data, _) in enumerate(test_loader):
         data = data.view(data.size(0), -1).to(device)
         #IWAE_likelihood, log_w = model.compute_marginal_log_likelihood(data)
