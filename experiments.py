@@ -97,8 +97,6 @@ if __name__ == '__main__':
     parser.add_argument('-s', '--gradient-estimate-sample', type=int, default=100,
                         help="number of samples used to estimate gradient bias (default 0: not estimate)")
 
-    categorical_dim, latent_dim = args.categorical_dim, args.latent_dim
-    print(categorical_dim, latent_dim)
     methods = ['reinmax_v3']#, 'gumbel', 'st', 'rao_gumbel', 'gst-1.0', 'reinmax'], reinmax_test
     args = parser.parse_args()
     args.cuda = not args.no_cuda and torch.cuda.is_available()
@@ -108,6 +106,8 @@ if __name__ == '__main__':
         device = 'cuda'
         torch.cuda.manual_seed(args.seed)
     print(f'device: {device}')
+    categorical_dim, latent_dim = args.categorical_dim, args.latent_dim
+    print(categorical_dim, latent_dim)
 
     manualSeed = args.seed
     random.seed(manualSeed)
