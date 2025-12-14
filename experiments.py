@@ -153,5 +153,5 @@ if __name__ == '__main__':
             print(epoch)
             train_metrics = train(model, optimizer, epoch, train_loader, test_loader)
             print(train_metrics)
-
+    print('finished')
 
