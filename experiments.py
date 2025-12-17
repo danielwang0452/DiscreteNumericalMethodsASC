@@ -1,5 +1,6 @@
 # plot the sample variance over course of training
 import argparse
+import json
 import os
 import sys
 import numpy as np
@@ -11,6 +12,7 @@ from torchvision import datasets, transforms
 from torchvision.utils import save_image
 from mnist_vae.model.vae import VAE
 import random
+from pathlib import Path
 from hyperparameters import hyperparameters
 
 device = 'cpu'
@@ -67,9 +69,9 @@ def train(model, optimizer, epoch, train_loader, test_loader):
     #get sample variance
     #print(args.gradient_estimate_sample)
     #print(args.gradient_estimate_sample)
-    bstd, norm = model.get_sample_variance(data[:args.gradient_estimate_sample, :], 1024)
-    metrics['Relative Std w.r.t. approx grad'] = bstd
-    metrics['grad_norm'] = norm
+    #bstd, norm = model.get_sample_variance(data[:args.gradient_estimate_sample, :], 1024)
+    #metrics['Relative Std w.r.t. approx grad'] = bstd
+    #metrics['grad_norm'] = norm
     model.zero_grad()
 
     return metrics
@@ -82,54 +84,68 @@ if __name__ == '__main__':
                         help='number of epochs to train') # 160
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='enables CUDA training')
-    parser.add_argument('--seed', type=int, default=52, metavar='S',
+    parser.add_argument('--nseeds', type=int, default=10, metavar='S',
                         help='random seed')
     parser.add_argument('--method', default='reinmax',
                         help='gumbel, st, rao_gumbel, gst-1.0, reinmax')
-    parser.add_argument('--lr', type=float, default=5e-4, #1e-3,
-                        help="learning rate for the optimizer")
     parser.add_argument('--latent-dim', type=int, default=4,#128
                         help="latent dimension")
     parser.add_argument('--categorical-dim', type=int, default=8,#10
+                        help="categorical dimension")
+    parser.add_argument('--optimiser_name', type=str, default='Adam',  # 10
                         help="categorical dimension")
     parser.add_argument('--activation', type=str, default='relu',
                         help="relu, leakyrelu")
     parser.add_argument('-s', '--gradient-estimate-sample', type=int, default=100,
                         help="number of samples used to estimate gradient bias (default 0: not estimate)")
-
-    methods = ['reinmax_v3']#, 'gumbel', 'st', 'rao_gumbel', 'gst-1.0', 'reinmax'], reinmax_test
+    parser.add_argument("--config", default='configs/generated/run_0.json')
     args = parser.parse_args()
+
+    with open(args.config) as f:
+        cfg = json.load(f)
+
+    lr = cfg["lr"]
+    optimiser = cfg["optimiser"]
+    temperature = cfg["temperature"]
+    print(optimiser, lr, temperature)
+    method = 'reinmax_v3'#, 'gumbel', 'st', 'rao_gumbel', 'gst-1.0', 'reinmax'], reinmax_test
     args.cuda = not args.no_cuda and torch.cuda.is_available()
     print(args.no_cuda, torch.cuda.is_available())
-    torch.manual_seed(args.seed)
-    if args.cuda:
-        device = 'cuda'
-        torch.cuda.manual_seed(args.seed)
-    print(f'device: {device}')
-    categorical_dim, latent_dim = args.categorical_dim, args.latent_dim
-    print(categorical_dim, latent_dim)
+    results_dict = {}
+    # Path to your JSON file
+    file_path = Path("configs/results/run_0.json")
+    # Create parent directories if they don't exist
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    for seed in range(args.nseeds):
+        print(f'seed: {seed}')
+        torch.manual_seed(seed)
+        manualSeed = seed
+        random.seed(manualSeed)
+        np.random.seed(manualSeed)
+        torch.manual_seed(manualSeed)
+        torch.cuda.manual_seed(manualSeed)
+        torch.cuda.manual_seed_all(manualSeed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        os.environ['PYTHONHASHSEED'] = str(manualSeed)
 
-    manualSeed = args.seed
-    random.seed(manualSeed)
-    np.random.seed(manualSeed)
-    torch.manual_seed(manualSeed)
-    torch.cuda.manual_seed(manualSeed)
-    torch.cuda.manual_seed_all(manualSeed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-    os.environ['PYTHONHASHSEED'] = str(manualSeed)
+        if args.cuda:
+            device = 'cuda'
+            torch.cuda.manual_seed(args.seed)
+        print(f'device: {device}')
+        categorical_dim, latent_dim = args.categorical_dim, args.latent_dim
+        print(categorical_dim, latent_dim)
+        seeds = range(args.nseeds)
 
-    kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
-    train_loader = torch.utils.data.DataLoader(
-        datasets.MNIST('./data/MNIST', train=True, download=True,
-                       transform=transforms.ToTensor()),
-        batch_size=args.batch_size, shuffle=True, **kwargs)
-    test_loader = torch.utils.data.DataLoader(
-        datasets.MNIST('./data/MNIST', train=False, transform=transforms.ToTensor()),
-        batch_size=args.batch_size, shuffle=True, **kwargs)
+        kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
+        train_loader = torch.utils.data.DataLoader(
+            datasets.MNIST('./data/MNIST', train=True, download=True,
+                           transform=transforms.ToTensor()),
+            batch_size=args.batch_size, shuffle=True, **kwargs)
+        test_loader = torch.utils.data.DataLoader(
+            datasets.MNIST('./data/MNIST', train=False, transform=transforms.ToTensor()),
+            batch_size=args.batch_size, shuffle=True, **kwargs)
 
-    for m, method in enumerate(methods):
-        print(method)
         # set up model
         model = VAE(
             latent_dim=latent_dim,
@@ -139,10 +155,7 @@ if __name__ == '__main__':
             activation=args.activation
         ).to(device)
         model.compute_code = model.compute_code_track
-        #checkpoint = torch.load(f'/Users/danielwang/PycharmProjects/ReinMax_ASC/model_checkpoints/vae_{method}_{latent_dim}x{categorical_dim}_epoch_50.pth',
-        #                        map_location=device)
-        #model.load_state_dict(checkpoint)
-        if hyperparameters[(method, categorical_dim, latent_dim)][2] == 'Adam':
+        if args.optimiser_name == 'Adam':
             optimizer = optim.Adam(model.parameters(), lr=hyperparameters[(method, categorical_dim, latent_dim)][0])
         else:
             optimizer = optim.RAdam(model.parameters(), lr=hyperparameters[(method, categorical_dim, latent_dim)][0])
@@ -150,8 +163,15 @@ if __name__ == '__main__':
         for epoch in range(1, args.epochs + 1):
             #if epoch == 49:
             #    model.method = 'reinmax'
-            print(epoch)
+            #print(epoch)
             train_metrics = train(model, optimizer, epoch, train_loader, test_loader)
-            print(train_metrics)
-    print('finished')
+
+        results_string = f'{method}-{epoch}-{args.optimiser_name}-{categorical_dim}x{latent_dim}-{temperature}-{lr}-{seed}'
+
+        results_dict[results_string] = [train_metrics["train_loss"], train_metrics["test_loss"]]
+
+        with open(f'configs/results/run_{run_id}.json', 'w') as f:
+            json.dump(results_dict, f)
+
+        print('finished')
 
