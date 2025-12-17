@@ -1,0 +1,6 @@
+{
+  "lr": 0.001,
+  "temperature": 0.3,
+  "optimiser": "RAdam",
+  "run_id": 3
+}
