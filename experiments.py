@@ -169,8 +169,9 @@ if __name__ == '__main__':
 
         results_dict[results_string] = [train_metrics["train_loss"], train_metrics["test_loss"]]
 
-        with open(f'configs/results/{results_string}.json', 'w') as f:
+    json_name = f'{method}-{epoch}-{args.optimiser_name}-{categorical_dim}x{latent_dim}-{temperature}-{lr}'
+    with open(f'configs/results/{json_name}.json', 'w') as f:
             json.dump(results_dict, f)
 
-        print('finished')
+    print('finished')
 
