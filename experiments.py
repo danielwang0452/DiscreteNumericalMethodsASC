@@ -168,7 +168,7 @@ if __name__ == '__main__':
         results_string = f'{method}-{epoch}-{args.optimiser_name}-{categorical_dim}x{latent_dim}-{temperature}-{lr}-{seed}'
 
         results_dict[results_string] = [train_metrics["train_loss"], train_metrics["test_loss"]]
-        save_path = results_string + ".pt"
+        save_path = "configs/models/" + results_string + ".pt"
         torch.save(
             {
                 "epoch": epoch,
