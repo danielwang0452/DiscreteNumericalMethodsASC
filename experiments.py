@@ -169,7 +169,7 @@ if __name__ == '__main__':
 
         results_dict[results_string] = [train_metrics["train_loss"], train_metrics["test_loss"]]
 
-        with open(f'configs/results/run_{run_id}.json', 'w') as f:
+        with open(f'configs/results/{results_string}.json', 'w') as f:
             json.dump(results_dict, f)
 
         print('finished')
