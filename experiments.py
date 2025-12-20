@@ -174,7 +174,6 @@ if __name__ == '__main__':
                 "epoch": epoch,
                 "model_state_dict": model.state_dict(),
                 "optimizer_state_dict": optimizer.state_dict(),
-                "loss": loss,
             },
             save_path
         )
