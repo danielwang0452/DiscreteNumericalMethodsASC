@@ -131,7 +131,6 @@ if __name__ == '__main__':
 
         if args.cuda:
             device = 'cuda'
-            torch.cuda.manual_seed(args.seed)
         print(f'device: {device}')
         categorical_dim, latent_dim = args.categorical_dim, args.latent_dim
         print(categorical_dim, latent_dim)
