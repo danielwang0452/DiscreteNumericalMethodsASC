@@ -168,7 +168,16 @@ if __name__ == '__main__':
         results_string = f'{method}-{epoch}-{args.optimiser_name}-{categorical_dim}x{latent_dim}-{temperature}-{lr}-{seed}'
 
         results_dict[results_string] = [train_metrics["train_loss"], train_metrics["test_loss"]]
-
+        save_path = results_string + ".pt"
+        torch.save(
+            {
+                "epoch": epoch,
+                "model_state_dict": model.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "loss": loss,
+            },
+            save_path
+        )
     json_name = f'{method}-{epoch}-{args.optimiser_name}-{categorical_dim}x{latent_dim}-{temperature}-{lr}'
     with open(f'configs/results/{json_name}.json', 'w') as f:
             json.dump(results_dict, f)
