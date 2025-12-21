@@ -1,13 +1,22 @@
 import json
 from pathlib import Path
 
-json_dir = Path("results_8x4/")
+json_dir = Path("results_8x4")
 
-results = {}
-#results_string = \
-#    f'{method}-{epoch}-{args.optimiser_name}-' \
-#    f'{categorical_dim}x{latent_dim}-{temperature}-{lr}-{seed}'
+all_configs = {}
+
 for json_path in json_dir.glob("*.json"):
     with open(json_path) as f:
-        results[json_path.stem] = json.load(f)
-print(results.keys())
+        all_configs[json_path.stem] = json.load(f)
+
+# average the 10 seeds
+avg_results = {}
+for key, value in all_configs.items():
+    average = [0, 0]
+    print(key)
+    for k, v in value.items():
+        print(v)
+        average[0] +=  0.1 * v[0]
+        average[1] += 0.1 * v[1]
+    avg_results[key] = average
+print(avg_results)

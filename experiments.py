@@ -13,7 +13,6 @@ from torchvision.utils import save_image
 from mnist_vae.model.vae import VAE
 import random
 from pathlib import Path
-from hyperparameters import hyperparameters
 
 device = 'cpu'
 
@@ -147,15 +146,15 @@ if __name__ == '__main__':
         model = VAE(
             latent_dim=latent_dim,
             categorical_dim=categorical_dim,
-            temperature=hyperparameters[(method, categorical_dim, latent_dim)][1],
+            temperature=temperature,
             method=method,
             activation=args.activation
         ).to(device)
         model.compute_code = model.compute_code_track
         if optimiser_name == 'Adam':
-            optimizer = optim.Adam(model.parameters(), lr=hyperparameters[(method, categorical_dim, latent_dim)][0])
+            optimizer = optim.Adam(model.parameters(), lr=lr)
         else:
-            optimizer = optim.RAdam(model.parameters(), lr=hyperparameters[(method, categorical_dim, latent_dim)][0])
+            optimizer = optim.RAdam(model.parameters(), lr=lr)
         model.train()
         for epoch in range(1, args.epochs + 1):
             #if epoch == 49:
