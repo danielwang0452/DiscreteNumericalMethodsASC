@@ -92,8 +92,6 @@ if __name__ == '__main__':
                         help="latent dimension")
     parser.add_argument('--categorical-dim', type=int, default=8,#10
                         help="categorical dimension")
-    parser.add_argument('--optimiser_name', type=str, default='Adam',  # 10
-                        help="categorical dimension")
     parser.add_argument('--activation', type=str, default='relu',
                         help="relu, leakyrelu")
     parser.add_argument('-s', '--gradient-estimate-sample', type=int, default=100,
@@ -105,9 +103,9 @@ if __name__ == '__main__':
         cfg = json.load(f)
 
     lr = cfg["lr"]
-    optimiser = cfg["optimiser"]
+    optimiser_name = cfg["optimiser"]
     temperature = cfg["temperature"]
-    print(optimiser, lr, temperature)
+    print(optimiser_name, lr, temperature)
     method = 'reinmax_v3'#, 'gumbel', 'st', 'rao_gumbel', 'gst-1.0', 'reinmax'], reinmax_test
     args.cuda = not args.no_cuda and torch.cuda.is_available()
     print(args.no_cuda, torch.cuda.is_available())
@@ -154,7 +152,7 @@ if __name__ == '__main__':
             activation=args.activation
         ).to(device)
         model.compute_code = model.compute_code_track
-        if args.optimiser_name == 'Adam':
+        if optimiser_name == 'Adam':
             optimizer = optim.Adam(model.parameters(), lr=hyperparameters[(method, categorical_dim, latent_dim)][0])
         else:
             optimizer = optim.RAdam(model.parameters(), lr=hyperparameters[(method, categorical_dim, latent_dim)][0])
@@ -165,7 +163,7 @@ if __name__ == '__main__':
             #print(epoch)
             train_metrics = train(model, optimizer, epoch, train_loader, test_loader)
 
-        results_string = f'{method}-{epoch}-{args.optimiser_name}-{categorical_dim}x{latent_dim}-{temperature}-{lr}-{seed}'
+        results_string = f'{method}-{epoch}-{optimiser_name}-{categorical_dim}x{latent_dim}-{temperature}-{lr}-{seed}'
 
         results_dict[results_string] = [train_metrics["train_loss"], train_metrics["test_loss"]]
         save_path = "configs/models/" + results_string + ".pt"
@@ -177,7 +175,7 @@ if __name__ == '__main__':
             },
             save_path
         )
-    json_name = f'{method}-{epoch}-{args.optimiser_name}-{categorical_dim}x{latent_dim}-{temperature}-{lr}'
+    json_name = f'{method}-{epoch}-{optimiser_name}-{categorical_dim}x{latent_dim}-{temperature}-{lr}'
     with open(f'configs/results/{json_name}.json', 'w') as f:
             json.dump(results_dict, f)
 
