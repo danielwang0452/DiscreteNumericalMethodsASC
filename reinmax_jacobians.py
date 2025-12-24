@@ -4,7 +4,7 @@ import torch
 import torch.nn.functional as F
 from reinmax_v2 import rao_gumbel_v2, rao_gumbel_v3
 import os
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 manualSeed = 52
 torch.manual_seed(manualSeed)

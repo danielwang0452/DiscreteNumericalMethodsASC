@@ -7,18 +7,8 @@ from torchvision import datasets, transforms
 from mnist_vae.model.vae import VAE
 import random
 
-device = "cpu"
-seed = 52
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 gradient_estimate_sample = 100
-manualSeed = seed
-random.seed(manualSeed)
-np.random.seed(manualSeed)
-torch.manual_seed(manualSeed)
-torch.cuda.manual_seed(manualSeed)
-torch.cuda.manual_seed_all(manualSeed)
-torch.backends.cudnn.deterministic = True
-torch.backends.cudnn.benchmark = False
-os.environ["PYTHONHASHSEED"] = str(manualSeed)
 
 
 def train(model, optimizer, epoch, train_loader, test_loader):
