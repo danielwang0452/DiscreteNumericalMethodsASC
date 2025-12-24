@@ -140,7 +140,6 @@ def run(
         metrics.append(train_metrics)
     
     # write final metrics to a file
-    fname = f"./results/results_seed{seed}_{method}_cat{categorical_dim}_lat{latent_dim}_opt{optimizer_type}_lr{learning_rate}_temp{temperature}.txt"
     np.savetxt(fname, np.array(metrics), fmt="%.6f", delimiter=",")
 
 def run_reinmax_one_job(categorical_dim, latent_dim, temperature, learning_rate, optimizer_type):
