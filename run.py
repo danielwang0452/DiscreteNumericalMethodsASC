@@ -74,6 +74,12 @@ def run(
     batch_size=100,
     epochs=160,
 ):
+    fname = f"./results/results_seed{seed}_{method}_cat{categorical_dim}_lat{latent_dim}_opt{optimizer_type}_lr{learning_rate}_temp{temperature}.txt"
+    # check if file exists
+    import os
+    if os.path.exists(fname):
+        print(f"File {fname} already exists. Skipping run.")
+        return
     
     # set random seed
     random.seed(seed)
@@ -141,17 +147,20 @@ def run_reinmax_one_job(categorical_dim, latent_dim, temperature, learning_rate,
     no_random_seeds = 10
     for random_seed in range(no_random_seeds):
         for method in ["reinmax_v2", "reinmax_v3"]:
-            run(
-                seed=random_seed,
-                method=method,
-                categorical_dim=categorical_dim,
-                latent_dim=latent_dim,
-                optimizer_type=optimizer_type,
-                learning_rate=learning_rate,
-                temperature=temperature,
-                batch_size=100,
-                epochs=160,
-            )
+            try:
+                run(
+                    seed=random_seed,
+                    method=method,
+                    categorical_dim=categorical_dim,
+                    latent_dim=latent_dim,
+                    optimizer_type=optimizer_type,
+                    learning_rate=learning_rate,
+                    temperature=temperature,
+                    batch_size=100,
+                    epochs=160,
+                )
+            except Exception as e:
+                print(f"Error occurred for seed {random_seed}, method {method}: {e}")
 
 
 if __name__ == "__main__":
