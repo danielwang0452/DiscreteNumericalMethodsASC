@@ -1,0 +1,20 @@
+#!/bin/bash
+#PBS -P mb26
+#PBS -l ncpus=12,ngpus=1,mem=24gb
+#PBS -l storage=scratch/mb26
+#PBS -l walltime=48:00:00
+#PBS -q gpuvolta
+#PBS -m be
+#PBS -l wd
+
+module unload intel-compiler intel-mkl python python2 python3 hdf5
+module load python3/3.11.0 python3-as-python
+cd /scratch/mb26/tb0610/DiscreteNumericalMethodsASC
+source env/bin/activate
+
+python run.py \
+  --categorical_dim=$categorical_dim \
+  --latent_dim=$latent_dim \
+  --temperature=$temperature \
+  --learning_rate=$learning_rate \
+  --optimizer_type=$optimizer_type

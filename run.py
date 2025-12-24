@@ -149,26 +149,21 @@ def run(
     fname = f"./results/results_seed{seed}_{method}_cat{categorical_dim}_lat{latent_dim}_opt{optimizer_type}_lr{learning_rate}_temp{temperature}.txt"
     np.savetxt(fname, np.array(metrics), fmt="%.6f", delimiter=",")
 
-def run_reinmax_one_job(learning_rate, optimizer_type):
+def run_reinmax_one_job(categorical_dim, latent_dim, temperature, learning_rate, optimizer_type):
     no_random_seeds = 10
-    temperature_options = [0.1, 0.3, 0.5, 0.7, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5]
-    categorical_dim_options = [8, 4, 8, 16, 64, 10]
-    latent_dim_options = [4, 24, 16, 12, 8, 30]
-    for (categorical_dim, latent_dim) in zip(categorical_dim_options, latent_dim_options):
-        for temperature in temperature_options:
-            for random_seed in range(no_random_seeds):
-                for method in ["reinmax_v2", "reinmax_v3"]:
-                    run(
-                        seed=random_seed,
-                        method=method,
-                        categorical_dim=categorical_dim,
-                        latent_dim=latent_dim,
-                        optimizer_type=optimizer_type,
-                        learning_rate=learning_rate,
-                        temperature=temperature,
-                        batch_size=100,
-                        epochs=160,
-                    )
+    for random_seed in range(no_random_seeds):
+        for method in ["reinmax_v2", "reinmax_v3"]:
+            run(
+                seed=random_seed,
+                method=method,
+                categorical_dim=categorical_dim,
+                latent_dim=latent_dim,
+                optimizer_type=optimizer_type,
+                learning_rate=learning_rate,
+                temperature=temperature,
+                batch_size=100,
+                epochs=160,
+            )
 
 
 
