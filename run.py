@@ -56,8 +56,8 @@ def train(model, optimizer, epoch, train_loader, test_loader):
     bstd, norm = model.get_sample_variance(
         data[:gradient_estimate_sample, :], 1024
     )
-    metrics.append(bstd)
-    metrics.append(norm)
+    metrics.append(bstd.detach().cpu().numpy())
+    metrics.append(norm.detach().cpu().numpy())
 
     model.zero_grad()
     return metrics
