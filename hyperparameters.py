@@ -7,6 +7,7 @@ hyperparameters = {  # lr, temp according to table 8 for VAE with 8x4 latents
     ('reinmax', 32, 32): [0.0005, 1.3, 'RAdam'],
     ('reinmax_v2', 32, 32): [0.0005, 1.0, 'RAdam'],
     ('reinmax_v3', 32, 32): [0.0005, 1.0, 'RAdam'],
+    ('reinmax_v4', 32, 32): [0.0005, 0.7, 'RAdam'],
 
     ('gaussian', 10, 30): [0.0005, 0.5, 'RAdam'],
     ('gumbel', 10, 30): [0.0005, 0.5, 'RAdam'],
@@ -16,6 +17,7 @@ hyperparameters = {  # lr, temp according to table 8 for VAE with 8x4 latents
     ('reinmax', 10, 30): [0.0005, 1.3, 'RAdam'],
     ('reinmax_v2', 10, 30): [0.0005, 1.0, 'RAdam'],
     ('reinmax_v3', 10, 30): [0.0005, 1.0, 'RAdam'],
+    ('reinmax_v4', 10, 30): [0.0005, 0.7, 'RAdam'],
 
     ('gaussian', 24, 4): [0.0005, 0.3, 'RAdam'],
     ('gumbel', 24, 4): [0.0005, 0.3, 'RAdam'],
@@ -25,6 +27,7 @@ hyperparameters = {  # lr, temp according to table 8 for VAE with 8x4 latents
     ('reinmax', 24, 4): [0.0005, 1.5, 'RAdam'],
     ('reinmax_v2', 24, 4): [0.0005, 1.0, 'RAdam'],
     ('reinmax_v3', 24, 4): [0.0005, 1.0, 'RAdam'],
+    ('reinmax_v4', 24, 4): [0.0005, 0.7, 'RAdam'],
 
     ('gaussian', 8, 16): [0.0005, 0.5, 'RAdam'],
     ('gumbel', 8, 16): [0.0005, 0.5, 'RAdam'],
@@ -34,6 +37,7 @@ hyperparameters = {  # lr, temp according to table 8 for VAE with 8x4 latents
     ('reinmax', 8, 16): [0.0007, 1.5, 'RAdam'],
     ('reinmax_v2', 8, 16): [0.0005, 1.0, 'RAdam'],
     ('reinmax_v3', 8, 16): [0.0005, 1.0, 'RAdam'],
+    ('reinmax_v4', 8, 16): [0.0005, 1.0, 'RAdam'],
 
     ('gaussian', 16, 12): [0.0007, 0.7, 'RAdam'],
     ('gumbel', 16, 12): [0.0007, 0.7, 'RAdam'],
@@ -43,6 +47,7 @@ hyperparameters = {  # lr, temp according to table 8 for VAE with 8x4 latents
     ('reinmax', 16, 12): [0.0007, 1.5, 'RAdam'],
     ('reinmax_v2', 16, 12): [0.0005, 1.0, 'RAdam'],
     ('reinmax_v3', 16, 12): [0.0005, 1.0, 'RAdam'],
+    ('reinmax_v4', 16, 12): [0.0005, 0.7, 'RAdam'],
 
     ('gaussian', 64, 8): [0.0007, 0.7, 'RAdam'],
     ('gumbel', 64, 8): [0.0007, 0.7, 'RAdam'],
@@ -52,6 +57,7 @@ hyperparameters = {  # lr, temp according to table 8 for VAE with 8x4 latents
     ('reinmax', 64, 8): [0.0005, 1.5, 'RAdam'],
     ('reinmax_v2', 64, 8): [0.0005, 1.0, 'RAdam'],
     ('reinmax_v3', 64, 8): [0.0005, 1.0, 'RAdam'],
+    ('reinmax_v4', 64, 8): [0.0005, 0.7, 'RAdam'],
 
     ('gaussian', 8, 4): [0.0003, 0.5, 'Adam'],
     ('gumbel', 8, 4): [0.0003, 0.5, 'Adam'],
@@ -62,4 +68,5 @@ hyperparameters = {  # lr, temp according to table 8 for VAE with 8x4 latents
     ('reinmax', 8, 4): [0.0005, 1.3, 'Adam'],
     ('reinmax_v2', 8, 4): [0.0005, 1.0, 'Adam'],
     ('reinmax_v3', 8, 4): [0.0005, 1.0, 'Adam'],
+    ('reinmax_v4', 8, 4): [0.0005, 0.7, 'Adam'],
 }

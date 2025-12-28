@@ -43,6 +43,8 @@ class ReinMaxCore_v2(torch.autograd.Function):
             jacobian_avg = rao_gumbel_v3(logits, one_hot_sample.reshape(logits.shape), tau)  # (B*L, C, C)
         elif ctx.jacobian_method == 'gumbel_ST_2':
             jacobian_avg = rao_gumbel_v3(logits, one_hot_sample.reshape(logits.shape), tau)  # (B*L, C, C)
+        elif ctx.jacobian_method == 'reinmax_v4':
+            jacobian_avg = rao_gumbel_v4(logits, one_hot_sample.reshape(logits.shape), tau)  # (B*L, C, C)
         else:
              print('jacobian method not found')
         grad_at_input_1 = 2*torch.matmul(grad_at_sample.unsqueeze(-2), jacobian_avg).squeeze()
@@ -159,8 +161,63 @@ def rao_gumbel_v3(logits, D, tau=1.0, repeats=100, hard=True):
     where theta'=softmax^-1((pi+D)/2)
     (bs*latdim, catdim, catdim)
     '''
+
     logits_cpy = logits.detach()
-    logits_cpy = (0.5*((logits_cpy/tau).softmax(dim=-1)+D)).log() # add tau here?
+    # use temperature here? -> pi_tau
+    logits_cpy = (0.5*(logits_cpy.softmax(dim=-1)+D)).log()
+    #logits_cpy = (0.5 * ((logits_cpy/tau).softmax(dim=-1) + D)).log()
+
+    #probs = logits_cpy.softmax(dim=-1)
+    #m = torch.distributions.one_hot_categorical.OneHotCategorical(probs=probs)
+    action = D
+    action_bool = action.bool() # this is D
+
+    logits_shape = logits.shape
+    bs = logits_shape[0]
+
+    E = torch.empty(logits_shape + (repeats,),
+                    dtype=logits.dtype,
+                    layout=logits.layout,
+                    device=logits.device,
+                    memory_format=torch.legacy_contiguous_format).exponential_()
+    # sample exponential using .exponential_()
+    Ei = E[action_bool].view(logits_shape[:-1] + (repeats,))  # rv. for the sampled location
+
+    wei = logits_cpy.exp()
+    Z = wei.sum(dim=-1, keepdim=True)  # (bs, latdim, 1)
+    EiZ = (Ei / Z).unsqueeze(-2)  # (bs, latdim, 1, repeats)
+    new_logits = E / (wei.unsqueeze(-1))  # (bs, latdim, catdim, repeats)
+    new_logits[action_bool] = 0.0
+    new_logits = -(new_logits + EiZ + 1e-20).log()
+
+    new_pi = (new_logits/tau).softmax(dim=-2)
+
+    # now compute the softmax jacobian at pi', then average
+    # jacobian = diag(pi) - pi @ pi.T
+    B, L, C, R = new_pi.shape
+    new_pi = new_pi.reshape(B * L, C, R).permute((0, 2, 1))  # (BL, R, C)
+    pi_diag = torch.diag_embed(new_pi)
+    jacobian = pi_diag - torch.matmul(new_pi.unsqueeze(-1), new_pi.unsqueeze(-2))
+    jacobian_avg = jacobian.mean(dim=1)/tau
+    #logits_diff = new_logits - logits_cpy.unsqueeze(-1)
+    #prob = ((logits.unsqueeze(-1) + logits_diff) / tau).softmax(dim=-2).mean(dim=-1)
+    #action = action - prob.detach() + prob if hard else prob
+    return jacobian_avg #action.view(logits_shape), distribution_original
+
+
+def rao_gumbel_v4(logits, D, tau=1.0, repeats=100, hard=True):
+    '''
+    :param logits:
+    :param D:
+    :param tau:
+    :param repeats:
+    :param hard:
+    :return: jacobian of E[softmax_t(x) evaluated at x = theta'+G|D]
+    where theta'=softmax^-1((pi+D)/2)
+    (bs*latdim, catdim, catdim)
+    '''
+    logits_cpy = logits.detach()
+    logits_cpy = (0.5*((logits_cpy/1.5).softmax(dim=-1)+D)).log() # add tau here?
     #probs = logits_cpy.softmax(dim=-1)
     #m = torch.distributions.one_hot_categorical.OneHotCategorical(probs=probs)
     action = D
@@ -203,59 +260,3 @@ def rao_gumbel_v3(logits, D, tau=1.0, repeats=100, hard=True):
     #action = action - prob.detach() + prob if hard else prob
     return jacobian_avg #action.view(logits_shape), distribution_original
 
-
-def rao_gumbel_v4(logits, D, tau=1.0, repeats=100, hard=True):
-    tau_1, tau_2 = 1.3, 0.5
-    '''
-    :param logits:
-    :param D:
-    :param tau:
-    :param repeats:
-    :param hard:
-    :return: jacobian of E[softmax_t(x) evaluated at x = theta'+G|D]
-    where theta'=softmax^-1((pi+D)/2)
-    (bs*latdim, catdim, catdim)
-    '''
-    logits_cpy = logits.detach()
-    logits_cpy = (0.5*(logits_cpy.softmax(dim=-1)+D)).log()
-    #probs = logits_cpy.softmax(dim=-1)
-    #m = torch.distributions.one_hot_categorical.OneHotCategorical(probs=probs)
-    action = D
-    action_bool = action.bool() # this is D
-
-    logits_shape = logits.shape
-    bs = logits_shape[0]
-
-    E = torch.empty(logits_shape + (repeats,),
-                    dtype=logits.dtype,
-                    layout=logits.layout,
-                    device=logits.device,
-                    memory_format=torch.legacy_contiguous_format).exponential_()
-    # sample exponential using .exponential_()
-    Ei = E[action_bool].view(logits_shape[:-1] + (repeats,))  # rv. for the sampled location
-
-    wei = logits_cpy.exp()
-    Z = wei.sum(dim=-1, keepdim=True)  # (bs, latdim, 1)
-    EiZ = (Ei / Z).unsqueeze(-2)  # (bs, latdim, 1, repeats)
-    new_logits = E / (wei.unsqueeze(-1))  # (bs, latdim, catdim, repeats)
-    new_logits[action_bool] = 0.0
-    new_logits = -(new_logits + EiZ + 1e-20).log()
-    new_pi = (new_logits/tau).softmax(dim=-2)
-
-    # now compute the softmax jacobian at pi', then average
-    # jacobian = diag(pi) - pi @ pi.T
-    B, L, C, R = new_pi.shape
-    new_pi = new_pi.reshape(B * L, C, R).permute((0, 2, 1))  # (BL, R, C)
-    pi_diag = torch.diag_embed(new_pi)
-    jacobian = pi_diag - torch.matmul(new_pi.unsqueeze(-1), new_pi.unsqueeze(-2))
-    #sample_jacobian = compute_sample_jacobian(logits.reshape(B * L, C),
-    #                                          D.reshape(B * L, C),
-    #                                          new_pi,
-    #                                          E.reshape(B * L, C, R).permute((0, 2, 1))
-    #                                          )
-    #jacobian = torch.matmul(jacobian, sample_jacobian)
-    jacobian_avg = jacobian.mean(dim=1)/tau_2
-    #logits_diff = new_logits - logits_cpy.unsqueeze(-1)
-    #prob = ((logits.unsqueeze(-1) + logits_diff) / tau).softmax(dim=-2).mean(dim=-1)
-    #action = action - prob.detach() + prob if hard else prob
-    return jacobian_avg #action.view(logits_shape), distribution_original
