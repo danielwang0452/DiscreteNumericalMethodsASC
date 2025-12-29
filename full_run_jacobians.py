@@ -14,7 +14,7 @@ import wandb
 import random
 from hyperparameters import hyperparameters
 
-device = 'cpu'
+device = 'mps'
 
 def train(model, optimizer, epoch, train_loader, test_loader):
     train_loss, train_bce, train_kld, variance, reinmax_t1_var, reinmax_t2_var, train_IWAE_likelihood = 0, 0, 0, 0, 0, 0, 0
@@ -132,6 +132,7 @@ if __name__ == '__main__':
     )
 
     manualSeed = args.seed
+    #print(manualSeed)
     random.seed(manualSeed)
     np.random.seed(manualSeed)
     torch.manual_seed(manualSeed)

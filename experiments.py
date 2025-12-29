@@ -150,7 +150,7 @@ if __name__ == '__main__':
             method=method,
             activation=args.activation
         ).to(device)
-        model.compute_code = model.compute_code_track
+        model.compute_code = model.compute_code_jacobian
         if optimiser_name == 'Adam':
             optimizer = optim.Adam(model.parameters(), lr=lr)
         else:
