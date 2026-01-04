@@ -52,12 +52,12 @@ def train(model, optimizer, epoch, train_loader, test_loader):
     metrics.append(test_kld / len(test_loader.dataset))
     model.train()
 
-    # get sample variance
-    bstd, norm = model.get_sample_variance(
-        data[:gradient_estimate_sample, :], 1024
-    )
-    metrics.append(bstd.detach().cpu().numpy())
-    metrics.append(norm.detach().cpu().numpy())
+    # # get sample variance
+    # bstd, norm = model.get_sample_variance(
+    #     data[:gradient_estimate_sample, :], 1024
+    # )
+    # metrics.append(bstd.detach().cpu().numpy())
+    # metrics.append(norm.detach().cpu().numpy())
 
     model.zero_grad()
     return metrics
@@ -79,7 +79,10 @@ def run(
     import os
     if os.path.exists(fname):
         print(f"File {fname} already exists. Skipping run.")
-        return
+        # if result file has all epochs, skip
+        existing_data = np.loadtxt(fname, delimiter=",")
+        if existing_data.shape[0] >= epochs:
+            return
     
     # set random seed
     random.seed(seed)
