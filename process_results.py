@@ -47,6 +47,11 @@ def load_results(results_dir='./results'):
                                     # Load metrics from file
                                     metrics = np.loadtxt(filename, delimiter=',')
                                     
+                                    # Skip files that don't have all 160 epochs
+                                    if len(metrics) < 160:
+                                        print(f"Skipping {filename}: only {len(metrics)} epochs (expected 160)")
+                                        continue
+                                    
                                     # Get last epoch: [train_loss, train_bce, train_kld, test_loss, test_bce, test_kld, ..., sample_std, ...]
                                     last_epoch = metrics[-1]
                                     train_loss = last_epoch[0]
@@ -138,6 +143,11 @@ def load_baseline_results(results_dir='./results'):
                 try:
                     # Load metrics from file
                     metrics = np.loadtxt(filename, delimiter=',')
+                    
+                    # Skip files that don't have all 160 epochs
+                    if len(metrics) < 160:
+                        print(f"Skipping {filename}: only {len(metrics)} epochs (expected 160)")
+                        continue
                     
                     # Get last epoch
                     last_epoch = metrics[-1]
@@ -936,6 +946,9 @@ def load_full_trajectories(results_dir='./results'):
                             if filename.exists():
                                 try:
                                     metrics = np.loadtxt(filename, delimiter=',')
+                                    # Skip files that don't have all 160 epochs
+                                    if len(metrics) < 160:
+                                        continue
                                     config_key = (cat_dim, lat_dim, method, optimizer, lr, temp)
                                     trajectories[config_key][seed] = metrics
                                 except:
@@ -953,6 +966,9 @@ def load_full_trajectories(results_dir='./results'):
             if filename.exists():
                 try:
                     metrics = np.loadtxt(filename, delimiter=',')
+                    # Skip files that don't have all 160 epochs
+                    if len(metrics) < 160:
+                        continue
                     config_key = (cat_dim, lat_dim, method, optimizer, lr, temp)
                     trajectories[config_key][seed] = metrics
                 except:
