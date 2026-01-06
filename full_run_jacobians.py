@@ -14,7 +14,7 @@ import wandb
 import random
 from hyperparameters import hyperparameters
 
-device = 'mps'
+device = 'cpu'
 
 def train(model, optimizer, epoch, train_loader, test_loader):
     train_loss, train_bce, train_kld, variance, reinmax_t1_var, reinmax_t2_var, train_IWAE_likelihood = 0, 0, 0, 0, 0, 0, 0
@@ -116,9 +116,9 @@ if __name__ == '__main__':
     parser.add_argument('-s', '--gradient-estimate-sample', type=int, default=100,
                         help="number of samples used to estimate gradient bias (default 0: not estimate)")
 
-    categorical_dim, latent_dim = 8, 16
+    categorical_dim, latent_dim = 8, 4
     print(categorical_dim, latent_dim)
-    methods = ['reinmax_v3']#, 'gumbel', 'st', 'rao_gumbel', 'gst-1.0', 'reinmax'], reinmax_test
+    methods = ['reinmax_cv']#, 'gumbel', 'st', 'rao_gumbel', 'gst-1.0', 'reinmax'], reinmax_test
     args = parser.parse_args()
     args.cuda = not args.no_cuda and torch.cuda.is_available()
 

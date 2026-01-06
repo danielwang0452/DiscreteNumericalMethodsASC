@@ -39,7 +39,7 @@ class ReinMaxCore_v2_jacobian(torch.autograd.Function):
             ctx.jacobian_method = jacobian_method
             return one_hot_sample, y_soft
 
-        elif jacobian_method in ['gumbel', 'gaussian']:
+        elif jacobian_method in ['gumbel', 'gaussian', 'reinmax_cv']:
             y_soft = F.softmax(logits, dim=-1).view(-1, logits.size()[-1])
             if jacobian_method == 'gaussian':
                 theta = gaussian_softmax(logits, tau=tau)
@@ -51,7 +51,7 @@ class ReinMaxCore_v2_jacobian(torch.autograd.Function):
                 #ctx.model_ref = model_ref
                 #ctx.jacobian_method = jacobian_method
                 #return one_hot_sample, y_soft
-            elif jacobian_method == 'gumbel':
+            elif jacobian_method in ['gumbel', 'reinmax_cv']:
                 theta = F.gumbel_softmax(logits, tau=tau)
             #plot_softmaxes(logits)
             # construct one hot sample
@@ -60,7 +60,10 @@ class ReinMaxCore_v2_jacobian(torch.autograd.Function):
             one_hot_sample = torch.zeros_like(
                 logits, memory_format=torch.legacy_contiguous_format
             ).scatter_(dim, index, 1.0).view(-1, logits.size()[-1])
-            ctx.save_for_backward(one_hot_sample, theta, y_soft, tau)
+            if jacobian_method == 'reinmax_cv':
+                ctx.save_for_backward(one_hot_sample, logits, y_soft, tau, theta)
+            else:
+                ctx.save_for_backward(one_hot_sample, theta, y_soft, tau)
             ctx.model_ref = model_ref
             ctx.jacobian_method = jacobian_method
             return one_hot_sample, y_soft
@@ -72,7 +75,11 @@ class ReinMaxCore_v2_jacobian(torch.autograd.Function):
             grad_at_sample: torch.Tensor, # (BL, C)
             grad_at_p: torch.Tensor,
     ):
-        one_hot_sample, logits, y_soft, tau = ctx.saved_tensors
+        if ctx.jacobian_method == 'reinmax_cv':
+            one_hot_sample, logits, y_soft, tau, pi_G = ctx.saved_tensors
+            # pi_G is softmax_tau(theta+G)
+        else:
+            one_hot_sample, logits, y_soft, tau = ctx.saved_tensors
         B, L, C = logits.shape
         if ctx.jacobian_method == 'reinmax':
             #print(one_hot_sample.shape, logits.shape)
@@ -148,6 +155,30 @@ class ReinMaxCore_v2_jacobian(torch.autograd.Function):
             grad_at_input = grad_at_input_0 + grad_at_input_1
             ctx.model_ref.jacobian = jacobian*tau
 
+        elif ctx.jacobian_method == 'reinmax_cv':
+            # Reinmax
+            shifted_y_soft = .5 * ((logits.view(-1, logits.size()[-1]) / tau).softmax(dim=-1) + one_hot_sample)
+            grad_at_input_1 = (2 * grad_at_sample) * shifted_y_soft
+            grad_at_input_1 = grad_at_input_1 - shifted_y_soft * grad_at_input_1.sum(dim=-1, keepdim=True)
+
+            grad_at_input_0 = (-0.5 * grad_at_sample + grad_at_p) * y_soft
+            grad_at_input_0 = grad_at_input_0 - y_soft * grad_at_input_0.sum(dim=-1, keepdim=True)
+            grad_reinmax = grad_at_input_0 + grad_at_input_1
+
+            # Gumbel rao evaluated at pi+D/2
+            eta =1.0
+            tau2 = 1.3
+            jacobian_GR = rao_gumbel_v3(logits, one_hot_sample.reshape(logits.shape), tau2) # BL, C, C
+            grad_GR = torch.matmul(jacobian_GR, grad_at_sample.unsqueeze(-1)).squeeze(-1)
+
+            # Gumbel softmax evaluated at pi+D/2
+            new_pi = 0.5*(logits.softmax(dim=-1)+one_hot_sample.reshape(logits.shape))
+            jacobian_GS = softmax_jacobian(new_pi.log(), new_pi)/tau2 # BL, C, C
+            grad_GS = torch.matmul(jacobian_GS, grad_at_sample.unsqueeze(-1)).squeeze(-1)
+
+            # put terms together
+            grad_at_input = grad_reinmax - eta * grad_GS + eta * grad_GR
+            # cv equation: E[reinmax - GS] + E[GR]
         return (grad_at_input - grad_at_input.mean(dim=-1, keepdim=True)).reshape(logits.shape), None, None, None
 
 def modify_jacobian(jacobian):

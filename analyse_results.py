@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-json_dir = Path("results_64x8")
+json_dir = Path("results_8x4")
 
 all_configs = {}
 
@@ -22,9 +22,9 @@ for key, value in all_configs.items():
 print(avg_results)
 
 # find min
-min_loss = 5000
+min_loss = 000
 for key, value in avg_results.items():
-    if value[0] < min_loss:
+    if value[0] > min_loss:
         min_loss = value[0]
         min_key = key
 
