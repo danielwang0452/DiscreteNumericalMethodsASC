@@ -51,6 +51,7 @@ def get_method_style(method):
         'reinmax': {'color': '#9467bd', 'linestyle': '-', 'marker': 'D', 'label': 'ReinMax'},
         # 'reinmax_v2': {'color': '#8c564b', 'linestyle': '--', 'marker': 'p', 'label': 'ReinMax-v2'},
         'reinmax_v3': {'color': '#e377c2', 'linestyle': '--', 'marker': 'h', 'label': 'ReinMax-Rao'},
+        'reinmax_cv': {'color': '#8c564b', 'linestyle': '--', 'marker': 'p', 'label': 'ReinMax-CV'},
     }
     return styles.get(method, {'color': 'gray', 'linestyle': '-', 'marker': 'x', 'label': method})
 
@@ -114,6 +115,7 @@ if __name__ == "__main__":
         ('reinmax', 'ReinMax'),
         # ('reinmax_v2', 'ReinMax-V2'),
         ('reinmax_v3', 'ReinMax-V3'),
+        ('reinmax_cv', 'ReinMax-CV'),
     ]
     no_seeds = 10
     epochs_list = []
@@ -178,7 +180,7 @@ if __name__ == "__main__":
 
     ax1.set_xlabel('Epoch')
     ax1.set_ylabel('Cosine similarity')
-    ax1.legend(frameon=True, fancybox=True, shadow=True, loc='lower left', ncol=3)
+    ax1.legend(frameon=False, fancybox=True, shadow=True, loc='lower left', ncol=2, fontsize=8, bbox_to_anchor=(0, -0.025))
     ax1.grid(True, alpha=0.3)
 
     plt.tight_layout()

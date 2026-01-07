@@ -310,11 +310,11 @@ class VAE(nn.Module):
             # std_t1_grad.norm() / mean_t1_grad.norm(),
             # or (std_t1_grad.reshape((100, 4 ,8)).norm(dim=(1, 2)) / mean_t1_grad.reshape((100, 4 ,8)).norm(dim=(1, 2))).mean()
         return (
-            diff.norm() / exact_grad.norm(),
-            diff.norm() / mean_grad.norm(),#(diff.reshape((100, 4 ,8)).norm(dim=(1, 2))/mean_grad.reshape((100, 4 ,8)).norm(dim=(1, 2))).mean(),
-            (std_grad.reshape((100, 4 ,8)).norm(dim=(1, 2))/mean_grad.reshape((100, 4 ,8)).norm(dim=(1, 2))).mean(),#std_grad.norm(dim=(1, 2)).mean(),#std_grad.norm() / mean_grad.norm(),
-            (exact_grad * mean_grad).sum() / (exact_grad.norm() * mean_grad.norm()),
-            mean_grad.norm(dim=(1, 2)).mean()
+            # diff.norm() / exact_grad.norm(),
+            # diff.norm() / mean_grad.norm(),#(diff.reshape((100, 4 ,8)).norm(dim=(1, 2))/mean_grad.reshape((100, 4 ,8)).norm(dim=(1, 2))).mean(),
+            # (std_grad.reshape((100, 4 ,8)).norm(dim=(1, 2))/mean_grad.reshape((100, 4 ,8)).norm(dim=(1, 2))).mean(),#std_grad.norm(dim=(1, 2)).mean(),#std_grad.norm() / mean_grad.norm(),
+            (exact_grad * mean_grad).sum() / (exact_grad.norm() * mean_grad.norm())
+            # mean_grad.norm(dim=(1, 2)).mean()
         )
 
        # return torch.tensor(1),torch.tensor(1), torch.tensor(1), torch.tensor(1), torch.tensor(1)

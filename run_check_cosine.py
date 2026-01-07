@@ -127,13 +127,14 @@ if __name__ == "__main__":
     no_epochs = 50
     save_interval = 5
     methods_info = [
-        ('gumbel', 'Gumbel'),
-        ('rao_gumbel', 'Gumbel-Rao'),
-        ('st', 'ST'),
-        ('gst-1.0', 'GST-1.0'),
-        ('reinmax', 'ReinMax'),
+        # ('gumbel', 'Gumbel'),
+        # ('rao_gumbel', 'Gumbel-Rao'),
+        # ('st', 'ST'),
+        # ('gst-1.0', 'GST-1.0'),
+        # ('reinmax', 'ReinMax'),
         # ('reinmax_v2', 'ReinMax-V2'),
-        ('reinmax_v3', 'ReinMax-V3'),
+        # ('reinmax_v3', 'ReinMax-V3'),
+        ('reinmax_cv', 'ReinMax-CV'),
     ]
     no_seeds = 10
     for seed in tqdm(range(no_seeds)):
