@@ -190,7 +190,8 @@ if __name__ == "__main__":
     categorical_dim_options = [8, 4, 8, 16, 64, 10]
     latent_dim_options = [4, 24, 16, 12, 8, 30]
     # methods = ["reinmax_v2", "reinmax_v3"]
-    methods = ["reinmax_v3"]
+    # methods = ["reinmax_v3"]
+    methods = ["reinmax_cv"]
     seeds = range(10)
     
     # Add all jobs to queue
