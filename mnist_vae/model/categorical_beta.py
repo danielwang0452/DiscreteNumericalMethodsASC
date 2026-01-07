@@ -69,6 +69,14 @@ def categorical_repara(logits, temp, method='gumbel', alpha=1.0, model_ref=None)
         sample, qy = reinmax_v2(logits, model_ref, tau=temp, jacobian_method='gumbel_ST')
         return sample, qy
 
+    elif method == 'reinmax_cv':
+        sample, qy = reinmax_jacobian(logits, model_ref, tau=temp, jacobian_method='reinmax_cv')
+        return sample, qy
+
+    elif method == 'st_v2':
+        sample, qy = reinmax_jacobian(logits, model_ref, tau=temp, jacobian_method='st_v2')
+        return sample, qy
+
     elif method in simple_method_mapping:
         sample, qy = simple_method_mapping[method](logits, tau=temp)
         return sample, qy

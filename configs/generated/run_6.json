@@ -1,0 +1,6 @@
+{
+  "lr": 0.001,
+  "temperature": 0.7,
+  "optimiser": "Adam",
+  "run_id": 6
+}

@@ -118,15 +118,14 @@ if __name__ == '__main__':
         'reinmax_v3': [0.0005, 0.5],
         'reinmax_test': [0.0005, 1.3]
     }
-    methods = ['reinmax_test', 'reinmax', 'st']#, 'rao_gumbel']
-    #methods = ['reinmax_v3' for _ in range(0)]
+    methods = ['reinmax_cv', 'reinmax', 'st', 'reinmax_v3']#, 'rao_gumbel']
+    #methods = ['reinmax_v3' for _ in range(10)]
     temps = torch.ones(len(methods))
-    temps = torch.linspace(0.05, 2.0, len(methods))
+    #temps = torch.linspace(0.1, 1.5, len(methods))
     for m, method in enumerate(methods):
         model.method = method
         model.temperature = temps[m]
-        model.temperature = hyperparameters[method][1]
-        print(method)
+        #model.temperature = hyperparameters[method][1]
         if model.method in ['reinmax_test', 'reinmax_v2']:
             rb0, rb1, bstd, reinmax_t1_std, reinmax_t2_std, cos, norm = model.analyze_gradient(
                 data[:args.gradient_estimate_sample, :], 1024)
@@ -139,7 +138,6 @@ if __name__ == '__main__':
             dicts = [rc0_dict, rb1_dict, std_dict, cos_dict, norm_dict]
             values = [rb0, rb1, bstd, cos, norm]
         model.zero_grad()
-
         for d, dict in enumerate(dicts):
             dict[f'{method}_{str(model.temperature)}'] = values[d].item()
         #jacobian_dict[f'{method}_{str(model.temperature)}'] = model.jacobian
@@ -160,8 +158,8 @@ if __name__ == '__main__':
         # Rotate x-axis labels if needed
         plt.xticks(rotation=30)
 
-        plt.savefig(f"saved_figs/{metrics[d]}.png")
-    with open("saved_figs/data.json", "w") as f:
+        plt.savefig(f"new_figs/{metrics[d]}.png")
+    with open("new_figs/data.json", "w") as f:
         json.dump(dicts, f, indent=4)
     # plot jacobians
     def visualise_jacobians(jacobian_dict, num_samples=1, save_path=f"saved_figs/jacobians.png"):
