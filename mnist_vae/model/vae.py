@@ -81,6 +81,7 @@ class VAE(nn.Module):
         self.temperature = temperature
         self.method = method
         self.alpha=1.0
+        self.eta = None
         
         if 'exact' == self.method:
             self.forward = self.forward_exact

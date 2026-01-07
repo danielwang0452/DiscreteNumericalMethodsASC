@@ -2,5 +2,6 @@
   "lr": 0.0003,
   "temperature": 1.4,
   "optimiser": "Adam",
+  "eta": 0.1,
   "run_id": 76
 }

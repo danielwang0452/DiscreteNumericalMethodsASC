@@ -2,7 +2,7 @@
 
 import torch
 import torch.nn.functional as F
-from reinmax_v2 import rao_gumbel_v2, rao_gumbel_v3
+from reinmax_v2 import rao_gumbel_v2, rao_gumbel_v3, rao_gumbel_v4
 import os
 # import matplotlib.pyplot as plt
 
@@ -52,7 +52,7 @@ class ReinMaxCore_v2_jacobian(torch.autograd.Function):
                 #ctx.jacobian_method = jacobian_method
                 #return one_hot_sample, y_soft
             elif jacobian_method in ['gumbel', 'reinmax_cv']:
-                theta = F.gumbel_softmax(logits, tau=tau)
+                theta, G = gumbel_softmax(logits, tau=tau)
             #plot_softmaxes(logits)
             # construct one hot sample
             dim=-1
@@ -76,7 +76,7 @@ class ReinMaxCore_v2_jacobian(torch.autograd.Function):
             grad_at_p: torch.Tensor,
     ):
         if ctx.jacobian_method == 'reinmax_cv':
-            one_hot_sample, logits, y_soft, tau, pi_G = ctx.saved_tensors
+            one_hot_sample, logits, y_soft, tau, G = ctx.saved_tensors
             # pi_G is softmax_tau(theta+G)
         else:
             one_hot_sample, logits, y_soft, tau = ctx.saved_tensors
@@ -166,14 +166,18 @@ class ReinMaxCore_v2_jacobian(torch.autograd.Function):
             grad_reinmax = grad_at_input_0 + grad_at_input_1
 
             # Gumbel rao evaluated at pi+D/2
-            eta =1.0
-            tau2 = 1.3
-            jacobian_GR = rao_gumbel_v3(logits, one_hot_sample.reshape(logits.shape), tau2) # BL, C, C
+            eta = 1.0
+            if ctx.model_ref.eta != None:
+                eta = ctx.model_ref.eta
+            #print(eta)
+            tau2 = 0.5
+            new_pi = 0.5 * ((logits).softmax(dim=-1) + one_hot_sample.reshape(logits.shape))
+
+            jacobian_GR = rao_gumbel_v4(new_pi.log(), one_hot_sample.reshape(logits.shape), tau2) # BL, C, C
             grad_GR = torch.matmul(jacobian_GR, grad_at_sample.unsqueeze(-1)).squeeze(-1)
 
             # Gumbel softmax evaluated at pi+D/2
-            new_pi = 0.5*(logits.softmax(dim=-1)+one_hot_sample.reshape(logits.shape))
-            jacobian_GS = softmax_jacobian(new_pi.log(), new_pi)/tau2 # BL, C, C
+            jacobian_GS = softmax_jacobian(new_pi.log() + G, None)/tau2 # BL, C, C
             grad_GS = torch.matmul(jacobian_GS, grad_at_sample.unsqueeze(-1)).squeeze(-1)
 
             # put terms together
@@ -286,3 +290,34 @@ def plot_softmaxes(logits, tau=0.01, dim=-1, K=1):
     plt.savefig(f'saved_figs/softmaxes', dpi=300)
     plt.close(fig)
     print('saved softmaxes')
+
+def gumbel_softmax(
+    logits: torch.Tensor,
+    tau: float = 1,
+    hard: bool = False,
+    eps: float = 1e-10,
+    dim: int = -1,
+) -> torch.Tensor:
+    if eps != 1e-10:
+        warnings.warn("`eps` parameter is deprecated and has no effect.")
+
+    gumbels = (
+        -torch.empty_like(logits, memory_format=torch.legacy_contiguous_format)
+        .exponential_()
+        .log()
+    )  # ~Gumbel(0,1)
+    gumbels2 = (logits + gumbels) / tau  # ~Gumbel(logits,tau)
+    y_soft = gumbels2.softmax(dim)
+
+    if hard:
+        # Straight through.
+        index = y_soft.max(dim, keepdim=True)[1]
+        y_hard = torch.zeros_like(
+            logits, memory_format=torch.legacy_contiguous_format
+        ).scatter_(dim, index, 1.0)
+        ret = y_hard - y_soft.detach() + y_soft
+    else:
+        # Reparametrization trick.
+        ret = y_soft
+    return ret, gumbels
+

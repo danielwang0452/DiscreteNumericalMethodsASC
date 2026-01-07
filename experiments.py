@@ -104,7 +104,8 @@ if __name__ == '__main__':
     lr = cfg["lr"]
     optimiser_name = cfg["optimiser"]
     temperature = cfg["temperature"]
-    print(optimiser_name, lr, temperature)
+    eta = cfg["eta"]
+    print(optimiser_name, lr, temperature, eta)
     method = 'reinmax_v3'#, 'gumbel', 'st', 'rao_gumbel', 'gst-1.0', 'reinmax'], reinmax_test
     args.cuda = not args.no_cuda and torch.cuda.is_available()
     print(args.no_cuda, torch.cuda.is_available())
@@ -151,6 +152,7 @@ if __name__ == '__main__':
             activation=args.activation
         ).to(device)
         model.compute_code = model.compute_code_jacobian
+        model.eta = eta
         if optimiser_name == 'Adam':
             optimizer = optim.Adam(model.parameters(), lr=lr)
         else:
