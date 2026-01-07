@@ -176,7 +176,7 @@ if __name__ == '__main__':
             },
             save_path
         )
-    json_name = f'{method}-{epoch}-{optimiser_name}-{categorical_dim}x{latent_dim}-{temperature}-{lr}'
+    json_name = f'{method}-{epoch}-{optimiser_name}-{categorical_dim}x{latent_dim}-{temperature}-{lr}-{eta}'
     with open(f'configs/results/{json_name}.json', 'w') as f:
             json.dump(results_dict, f)
 
