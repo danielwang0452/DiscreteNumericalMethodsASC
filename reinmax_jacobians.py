@@ -170,7 +170,7 @@ class ReinMaxCore_v2_jacobian(torch.autograd.Function):
             if ctx.model_ref.eta != None:
                 eta = ctx.model_ref.eta
             #print(eta)
-            tau2 = 0.5
+            tau2 = tau
             new_pi = 0.5 * ((logits).softmax(dim=-1) + one_hot_sample.reshape(logits.shape))
 
             jacobian_GR = rao_gumbel_v4(new_pi.log(), one_hot_sample.reshape(logits.shape), tau2) # BL, C, C
