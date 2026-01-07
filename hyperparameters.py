@@ -68,5 +68,5 @@ hyperparameters = {  # lr, temp according to table 8 for VAE with 8x4 latents
     ('reinmax', 8, 4): [0.0005, 1.3, 'Adam'],
     ('reinmax_v2', 8, 4): [0.0005, 1.0, 'Adam'],
     ('reinmax_v3', 8, 4): [0.0005, 1.0, 'Adam'],
-    ('reinmax_cv', 8, 4): [0.0005, 1.0, 'Adam'],
+    ('reinmax_cv', 8, 4): [0.0005, 1.3, 'Adam'],
 }

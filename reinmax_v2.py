@@ -211,7 +211,6 @@ def rao_gumbel_v4(logits, D, tau=1.0, repeats=100, hard=True):
     (bs*latdim, catdim, catdim)
     '''
     logits_cpy = logits.detach()
-    logits_cpy = (0.5*((logits_cpy/tau).softmax(dim=-1)+D)).log() # add tau here?
     #probs = logits_cpy.softmax(dim=-1)
     #m = torch.distributions.one_hot_categorical.OneHotCategorical(probs=probs)
     action = D
@@ -234,21 +233,16 @@ def rao_gumbel_v4(logits, D, tau=1.0, repeats=100, hard=True):
     new_logits = E / (wei.unsqueeze(-1))  # (bs, latdim, catdim, repeats)
     new_logits[action_bool] = 0.0
     new_logits = -(new_logits + EiZ + 1e-20).log()
-    #new_pi = (new_logits/tau).softmax(dim=-2)
-    new_pi = new_logits.softmax(dim=-2)
+
+    new_pi = (new_logits/tau).softmax(dim=-2)
+
     # now compute the softmax jacobian at pi', then average
     # jacobian = diag(pi) - pi @ pi.T
     B, L, C, R = new_pi.shape
     new_pi = new_pi.reshape(B * L, C, R).permute((0, 2, 1))  # (BL, R, C)
     pi_diag = torch.diag_embed(new_pi)
     jacobian = pi_diag - torch.matmul(new_pi.unsqueeze(-1), new_pi.unsqueeze(-2))
-    #sample_jacobian = compute_sample_jacobian(logits.reshape(B * L, C),
-    #                                          D.reshape(B * L, C),
-    #                                          new_pi,
-    #                                          E.reshape(B * L, C, R).permute((0, 2, 1))
-    #                                          )
-    #jacobian = torch.matmul(jacobian, sample_jacobian)
-    jacobian_avg = jacobian.mean(dim=1)#/tau
+    jacobian_avg = jacobian.mean(dim=1)/tau
     #logits_diff = new_logits - logits_cpy.unsqueeze(-1)
     #prob = ((logits.unsqueeze(-1) + logits_diff) / tau).softmax(dim=-2).mean(dim=-1)
     #action = action - prob.detach() + prob if hard else prob

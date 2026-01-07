@@ -119,12 +119,14 @@ if __name__ == '__main__':
         'reinmax_test': [0.0005, 1.3]
     }
     methods = ['reinmax_cv', 'reinmax', 'st', 'reinmax_v3']#, 'rao_gumbel']
-    #methods = ['reinmax_v3' for _ in range(10)]
+    methods = ['reinmax_cv' for _ in range(10)]
     temps = torch.ones(len(methods))
-    #temps = torch.linspace(0.1, 1.5, len(methods))
+    etas = torch.linspace(0.0, 0.5, len(methods))
     for m, method in enumerate(methods):
         model.method = method
         model.temperature = temps[m]
+        if method == 'reinmax_cv':
+            model.eta = etas[m]
         #model.temperature = hyperparameters[method][1]
         if model.method in ['reinmax_test', 'reinmax_v2']:
             rb0, rb1, bstd, reinmax_t1_std, reinmax_t2_std, cos, norm = model.analyze_gradient(
@@ -139,7 +141,10 @@ if __name__ == '__main__':
             values = [rb0, rb1, bstd, cos, norm]
         model.zero_grad()
         for d, dict in enumerate(dicts):
-            dict[f'{method}_{str(model.temperature)}'] = values[d].item()
+            if method == 'reinmax_cv':
+                dict[f'{method}_{str(float(model.temperature))}_{float(model.eta):.2f}'] = values[d].item()
+            else:
+                dict[f'{method}_{str(float(model.temperature))}'] = values[d].item()
         #jacobian_dict[f'{method}_{str(model.temperature)}'] = model.jacobian
     # plot
     for d, dict in enumerate(dicts):

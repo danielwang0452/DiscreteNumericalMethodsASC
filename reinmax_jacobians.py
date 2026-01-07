@@ -2,7 +2,7 @@
 
 import torch
 import torch.nn.functional as F
-from reinmax_v2 import rao_gumbel_v2, rao_gumbel_v3
+from reinmax_v2 import rao_gumbel_v2, rao_gumbel_v3, rao_gumbel_v4
 import os
 import matplotlib.pyplot as plt
 
@@ -166,13 +166,17 @@ class ReinMaxCore_v2_jacobian(torch.autograd.Function):
             grad_reinmax = grad_at_input_0 + grad_at_input_1
 
             # Gumbel rao evaluated at pi+D/2
-            eta =1.0
-            tau2 = 1.3
-            jacobian_GR = rao_gumbel_v3(logits, one_hot_sample.reshape(logits.shape), tau2) # BL, C, C
+            eta = 1.0
+            if ctx.model_ref.eta != None:
+                eta = ctx.model_ref.eta
+            #print(eta)
+            tau2 = tau
+            new_pi = 0.5 * ((logits).softmax(dim=-1) + one_hot_sample.reshape(logits.shape))
+
+            jacobian_GR = rao_gumbel_v4(new_pi.log(), one_hot_sample.reshape(logits.shape), tau2) # BL, C, C
             grad_GR = torch.matmul(jacobian_GR, grad_at_sample.unsqueeze(-1)).squeeze(-1)
 
             # Gumbel softmax evaluated at pi+D/2
-            new_pi = 0.5*(logits.softmax(dim=-1)+one_hot_sample.reshape(logits.shape))
             jacobian_GS = softmax_jacobian(new_pi.log(), new_pi)/tau2 # BL, C, C
             grad_GS = torch.matmul(jacobian_GS, grad_at_sample.unsqueeze(-1)).squeeze(-1)
 
