@@ -106,7 +106,7 @@ if __name__ == '__main__':
     temperature = cfg["temperature"]
     eta = cfg["eta"]
     print(optimiser_name, lr, temperature, eta)
-    method = 'reinmax_v3'#, 'gumbel', 'st', 'rao_gumbel', 'gst-1.0', 'reinmax'], reinmax_test
+    method = 'reinmax_cv'#, 'gumbel', 'st', 'rao_gumbel', 'gst-1.0', 'reinmax'], reinmax_test
     args.cuda = not args.no_cuda and torch.cuda.is_available()
     print(args.no_cuda, torch.cuda.is_available())
     results_dict = {}
@@ -176,7 +176,7 @@ if __name__ == '__main__':
             },
             save_path
         )
-    json_name = f'{method}-{epoch}-{optimiser_name}-{categorical_dim}x{latent_dim}-{temperature}-{lr}'
+    json_name = f'{method}-{epoch}-{optimiser_name}-{categorical_dim}x{latent_dim}-{temperature}-{lr}-{eta}'
     with open(f'configs/results/{json_name}.json', 'w') as f:
             json.dump(results_dict, f)
 

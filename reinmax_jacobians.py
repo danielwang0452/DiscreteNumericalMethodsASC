@@ -157,7 +157,7 @@ class ReinMaxCore_v2_jacobian(torch.autograd.Function):
 
         elif ctx.jacobian_method == 'reinmax_cv':
             # Reinmax
-            shifted_y_soft = .5 * ((logits.view(-1, logits.size()[-1]) / tau).softmax(dim=-1) + one_hot_sample)
+            shifted_y_soft = .5 * ((logits.view(-1, logits.size()[-1]) / 1.0).softmax(dim=-1) + one_hot_sample)
             grad_at_input_1 = (2 * grad_at_sample) * shifted_y_soft
             grad_at_input_1 = grad_at_input_1 - shifted_y_soft * grad_at_input_1.sum(dim=-1, keepdim=True)
 
@@ -166,11 +166,12 @@ class ReinMaxCore_v2_jacobian(torch.autograd.Function):
             grad_reinmax = grad_at_input_0 + grad_at_input_1
 
             # Gumbel rao evaluated at pi+D/2
-            eta = 1.0
+            eta = 0.5
             if ctx.model_ref.eta != None:
                 eta = ctx.model_ref.eta
             #print(eta)
-            tau2 = 0.5
+            tau2 = tau
+
             new_pi = 0.5 * ((logits).softmax(dim=-1) + one_hot_sample.reshape(logits.shape))
 
             jacobian_GR = rao_gumbel_v4(new_pi.log(), one_hot_sample.reshape(logits.shape), tau2) # BL, C, C
