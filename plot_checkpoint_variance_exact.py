@@ -119,9 +119,9 @@ if __name__ == '__main__':
         'reinmax_test': [0.0005, 1.3]
     }
     methods = ['reinmax_cv', 'reinmax', 'st', 'reinmax_v3']#, 'rao_gumbel']
-    methods = ['reinmax_cv' for _ in range(10)]
+    #methods = ['reinmax_cv' for _ in range(10)]
     temps = torch.ones(len(methods))
-    etas = torch.linspace(0.0, 0.5, len(methods))
+    etas = temps#torch.linspace(0.0, 0.5, len(methods))
     for m, method in enumerate(methods):
         model.method = method
         model.temperature = temps[m]
