@@ -116,7 +116,7 @@ if __name__ == '__main__':
     parser.add_argument('-s', '--gradient-estimate-sample', type=int, default=100,
                         help="number of samples used to estimate gradient bias (default 0: not estimate)")
 
-    categorical_dim, latent_dim = 8, 4
+    categorical_dim, latent_dim = 10, 30
     print(categorical_dim, latent_dim)
     methods = ['reinmax_cv']#, 'gumbel', 'st', 'rao_gumbel', 'gst-1.0', 'reinmax'], reinmax_test
     args = parser.parse_args()
