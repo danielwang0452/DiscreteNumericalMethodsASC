@@ -1,7 +1,0 @@
-{
-  "lr": 0.0005,
-  "temperature": 1.1,
-  "optimiser": "RAdam",
-  "eta": 2.0,
-  "run_id": 41
-}
