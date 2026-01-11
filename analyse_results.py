@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-json_dir = Path("results/results_reinmax_cv_16x12_2")
+json_dir = Path("results/results_reinmax_cv_64x8_2")
 
 #json_dir = Path("results_8x4")
 all_configs = {}

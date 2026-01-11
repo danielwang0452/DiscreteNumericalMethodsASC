@@ -1,7 +1,7 @@
 {
   "lr": 0.0005,
-  "temperature": 1.0,
-  "optimiser": "Adam",
+  "temperature": 1.5,
+  "optimiser": "RAdam",
   "eta": 1.0,
   "run_id": 32
 }
